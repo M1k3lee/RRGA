@@ -58,10 +58,15 @@ export interface EvidenceItem {
   id: string;
   artifact_id?: string | null;
   source: string;
+  source_name?: string;
+  source_type?: string;
   evidence_type: string;
   uri?: string | null;
+  field_path?: string | null;
   snippet?: string | null;
   captured_at?: string | null;
+  artifact_fetched_at?: string | null;
+  artifact_published_at?: string | null;
 }
 
 export interface EntityProfile {
@@ -69,6 +74,8 @@ export interface EntityProfile {
   canonical_name: string;
   aliases: string[];
   entity_type: string;
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
   jurisdictions: Array<{
     code: string;
     name: string;
@@ -94,6 +101,49 @@ export interface EntityProfile {
   source_provenance: string[];
   summary?: string | null;
   meta: Record<string, unknown>;
+}
+
+export interface ContractProfile {
+  id: string;
+  chain: string;
+  address: string;
+  token_name?: string | null;
+  token_symbol?: string | null;
+  is_verified?: boolean | null;
+  explorer_url?: string | null;
+  meta: Record<string, unknown>;
+  related_nodes: GraphNode[];
+}
+
+export interface DomainProfile {
+  id: string;
+  hostname: string;
+  canonical_url?: string | null;
+  title?: string | null;
+  meta: Record<string, unknown>;
+  linked_entities: GraphNode[];
+}
+
+export interface WalletProfile {
+  id: string;
+  chain: string;
+  address: string;
+  label?: string | null;
+  meta: Record<string, unknown>;
+  related_nodes: GraphNode[];
+}
+
+export interface JurisdictionProfile {
+  code: string;
+  name: string;
+  meta: Record<string, unknown>;
+  entities: Array<{
+    id: string;
+    canonical_name: string;
+    entity_type: string;
+    status?: string | null;
+    role: string;
+  }>;
 }
 
 export interface AlertEvent {

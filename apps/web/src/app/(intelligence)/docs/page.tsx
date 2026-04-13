@@ -7,7 +7,21 @@ export default async function DocsPage() {
   const liveSample = sources[0] ?? null;
 
   return (
-    <ShellFrame activePath="/docs" eyebrow="REST surface" title="API Docs">
+    <ShellFrame
+      activePath="/docs"
+      eyebrow="VOTO developer documentation"
+      title="Docs"
+      dock={
+        <div className="space-y-4">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Documentation notes</p>
+          <div className="space-y-3 text-sm leading-7 text-white/60">
+            <p>Use the API page for VOTO positioning, commercial framing, and buyer context.</p>
+            <p>Use this page when you need route coverage, payload structure, and live OpenAPI visibility.</p>
+            <p>Samples here stay tied to live source responses only.</p>
+          </div>
+        </div>
+      }
+    >
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-[26px] border border-white/10 bg-black/20 p-5">
           <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Exposed routes</p>
@@ -38,7 +52,8 @@ export default async function DocsPage() {
           <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
             <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Docs policy</p>
             <p className="mt-4 text-sm leading-7 text-white/60">
-              Samples on this page come from live responses only. If the backend has no ingested data yet, the module stays empty rather than fabricating example records.
+              Samples on this page come from live responses only. If the backend has no ingested data yet, the module
+              stays empty rather than fabricating example records.
             </p>
           </div>
         </section>

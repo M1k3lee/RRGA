@@ -83,5 +83,5 @@ class WatchlistCreateRequest(BaseModel):
 
 
 class AlertTestRequest(BaseModel):
-    title: str = "RRGA test alert"
+    title: str = "VOTO test alert"
     payload: dict[str, Any] = Field(default_factory=dict)

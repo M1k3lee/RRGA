@@ -13,7 +13,7 @@ from app.ingest.sources.esma import ingest_esma
 from app.ingest.sources.etherscan import hydrate_contract_from_etherscan
 from app.ingest.sources.ofac import ingest_ofac
 
-cli = typer.Typer(help="RRGA backend CLI")
+cli = typer.Typer(help="VOTO backend CLI")
 
 
 @cli.command("init-db")

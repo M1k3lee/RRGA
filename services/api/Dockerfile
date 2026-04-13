@@ -9,4 +9,4 @@ COPY services/api ./services/api
 RUN pip install --no-cache-dir ./services/api
 
 EXPOSE 8000
-CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "services/api", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "python -m uvicorn app.main:app --app-dir services/api --host 0.0.0.0 --port ${PORT:-8000}"]

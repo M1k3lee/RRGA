@@ -1,1 +1,1 @@
-"""RRGA API package."""
+"""VOTO API package."""

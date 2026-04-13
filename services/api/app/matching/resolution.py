@@ -17,6 +17,12 @@ def normalize_text(value: str | None) -> str:
     return re.sub(r"\s+", " ", lowered).strip()
 
 
+def is_evm_address(value: str | None) -> bool:
+    if not value:
+        return False
+    return bool(re.fullmatch(r"0x[a-fA-F0-9]{40}", value.strip()))
+
+
 def extract_hostnames(value: str | None) -> list[str]:
     if not value:
         return []

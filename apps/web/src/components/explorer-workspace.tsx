@@ -12,6 +12,7 @@ import type { GraphResponse, SearchResponse, SearchResult } from "@/types/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const ENTITY_TYPES = new Set(["legal_entity", "brand", "regulator", "sanctions_subject", "individual", "entity"]);
+const DIRECT_GRAPH_TYPES = new Set(["contract", "wallet", "domain", "jurisdiction"]);
 
 export function ExplorerWorkspace() {
   const [query, setQuery] = useState("");
@@ -50,20 +51,34 @@ export function ExplorerWorkspace() {
   }, [graph.nodes, selectedIds]);
 
   async function loadNeighborhood(result: SearchResult) {
-    if (!ENTITY_TYPES.has(result.node_type)) {
+    let graphPath: string | null = null;
+    let selectedGraphId: string | null = null;
+
+    if (ENTITY_TYPES.has(result.node_type)) {
+      graphPath = `${API_BASE}/entity/${result.id}/graph`;
+      selectedGraphId = `entity:${result.id}`;
+    } else if (DIRECT_GRAPH_TYPES.has(result.node_type)) {
+      graphPath = `${API_BASE}/graph/${result.node_type}/${result.id}`;
+      selectedGraphId = `${result.node_type}:${result.id}`;
+    } else {
       setGraph({ nodes: [], edges: [] });
       setSelectedIds([]);
       return;
     }
+
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/entity/${result.id}/graph`, { cache: "no-store" });
+      const response = await fetch(graphPath, { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Failed to load graph");
       }
       const payload = (await response.json()) as GraphResponse;
       setGraph(payload);
-      setSelectedIds(payload.nodes[0] ? [payload.nodes[0].id] : []);
+      const nextSelectedId =
+        (selectedGraphId && payload.nodes.some((node) => node.id === selectedGraphId) && selectedGraphId) ||
+        payload.nodes[0]?.id ||
+        null;
+      setSelectedIds(nextSelectedId ? [nextSelectedId] : []);
     } finally {
       setLoading(false);
     }
@@ -85,7 +100,7 @@ export function ExplorerWorkspace() {
         </div>
 
         <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Command Feed</p>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Investigation feed</p>
           <div className="mt-4 space-y-2">
             {results.length ? (
               results.map((result) => (
@@ -107,7 +122,7 @@ export function ExplorerWorkspace() {
               ))
             ) : (
               <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-5 text-sm leading-7 text-white/55">
-                Start typing to resolve a real entity or address. The canvas only hydrates when a live match exists.
+                Start typing to resolve a real entity or address. The graph only loads when a source-backed match exists.
               </div>
             )}
           </div>
@@ -181,8 +196,8 @@ export function ExplorerWorkspace() {
           <div className="rounded-[26px] border border-white/10 bg-black/20 p-4">
             <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Operational Notes</p>
             <div className="mt-4 space-y-3 text-sm leading-7 text-white/60">
-              <p>Official regulator and sanctions sources win when data conflicts.</p>
-              <p>Enrichment from CoinGecko and Etherscan adds metadata but never overwrites official register facts.</p>
+              <p>Use this surface when you need connected investigation context after a legitimacy check.</p>
+              <p>Official regulator and sanctions sources win when data conflicts. Enrichment layers never overwrite them.</p>
               <p>Empty graph states are deliberate: the interface only renders evidence-backed objects.</p>
             </div>
           </div>

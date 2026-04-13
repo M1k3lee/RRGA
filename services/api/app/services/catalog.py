@@ -27,11 +27,24 @@ from app.db.models import (
     Wallet,
     Whitepaper,
 )
-from app.matching.resolution import score_query_against_candidate
+from app.matching.resolution import is_evm_address, score_query_against_candidate
 
 
 def node_key(node_type: str, raw_id: str) -> str:
     return f"{node_type}:{raw_id}"
+
+
+NODE_MODEL_MAP: dict[str, Any] = {
+    "entity": Entity,
+    "domain": Domain,
+    "contract": Contract,
+    "wallet": Wallet,
+    "whitepaper": Whitepaper,
+    "register_record": RegisterRecord,
+    "sanctions_record": SanctionsRecord,
+    "warning_notice": WarningNotice,
+    "jurisdiction": Jurisdiction,
+}
 
 
 def _get_required(session: Session, model: Any, item_id: str) -> Any:
@@ -74,6 +87,17 @@ def serialize_node(session: Session, node_type: str, raw_id: str) -> dict[str, A
             "label": contract.token_name or contract.address,
             "status": "verified" if contract.is_verified else "observed",
             "meta": {"chain": contract.chain, "address": contract.address, **contract.metadata_json},
+        }
+    if node_type == "jurisdiction":
+        jurisdiction = session.get(Jurisdiction, raw_id)
+        if jurisdiction is None:
+            return None
+        return {
+            "id": node_key(node_type, raw_id),
+            "node_type": "jurisdiction",
+            "label": jurisdiction.name,
+            "status": None,
+            "meta": {"code": jurisdiction.code, **jurisdiction.metadata_json},
         }
     if node_type == "wallet":
         wallet = session.get(Wallet, raw_id)
@@ -169,34 +193,37 @@ def search_registry(session: Session, query: str, limit: int = 20) -> list[dict[
         return []
 
     results: list[dict[str, Any]] = []
-    entities = session.scalars(select(Entity).order_by(Entity.updated_at.desc()).limit(750)).all()
-    aliases_by_entity = defaultdict(list)
-    for alias in session.scalars(select(Alias)).all():
-        aliases_by_entity[alias.entity_id].append(alias.alias)
+    address_query = is_evm_address(query)
 
-    for entity in entities:
-        scored = score_query_against_candidate(query, entity.canonical_name)
-        matched_on = list(scored.reasons)
-        for alias in aliases_by_entity.get(entity.id, []):
-            alias_score = score_query_against_candidate(query, alias)
-            if alias_score.score > scored.score:
-                scored = alias_score
-                matched_on = alias_score.reasons + ["alias"]
-        if scored.score < 0.55:
-            continue
-        results.append(
-            {
-                "id": entity.id,
-                "node_type": entity.entity_type,
-                "label": entity.canonical_name,
-                "score": round(scored.score, 3),
-                "current_status": entity.current_status,
-                "source_of_truth": entity.source_of_truth,
-                "matched_on": matched_on,
-            }
-        )
+    if not address_query:
+        entities = session.scalars(select(Entity).order_by(Entity.updated_at.desc()).limit(750)).all()
+        aliases_by_entity = defaultdict(list)
+        for alias in session.scalars(select(Alias)).all():
+            aliases_by_entity[alias.entity_id].append(alias.alias)
 
-    if "." in query:
+        for entity in entities:
+            scored = score_query_against_candidate(query, entity.canonical_name)
+            matched_on = list(scored.reasons)
+            for alias in aliases_by_entity.get(entity.id, []):
+                alias_score = score_query_against_candidate(query, alias)
+                if alias_score.score > scored.score:
+                    scored = alias_score
+                    matched_on = alias_score.reasons + ["alias"]
+            if scored.score < 0.55:
+                continue
+            results.append(
+                {
+                    "id": entity.id,
+                    "node_type": entity.entity_type,
+                    "label": entity.canonical_name,
+                    "score": round(scored.score, 3),
+                    "current_status": entity.current_status,
+                    "source_of_truth": entity.source_of_truth,
+                    "matched_on": matched_on,
+                }
+            )
+
+    if not address_query and "." in query:
         domains = session.scalars(
             select(Domain).where(or_(Domain.hostname.ilike(f"%{query}%"), Domain.canonical_url.ilike(f"%{query}%")))
         ).all()
@@ -213,8 +240,9 @@ def search_registry(session: Session, query: str, limit: int = 20) -> list[dict[
                 }
             )
 
-    if query.startswith("0x"):
-        for contract in session.scalars(select(Contract).where(Contract.address.ilike(query.lower()))).all():
+    if address_query:
+        normalized_address = query.lower()
+        for contract in session.scalars(select(Contract).where(Contract.address == normalized_address)).all():
             results.append(
                 {
                     "id": contract.id,
@@ -222,11 +250,11 @@ def search_registry(session: Session, query: str, limit: int = 20) -> list[dict[
                     "label": contract.token_name or contract.address,
                     "score": 1.0,
                     "current_status": "verified" if contract.is_verified else "observed",
-                    "source_of_truth": None,
+                    "source_of_truth": contract.metadata_json.get("source"),
                     "matched_on": ["address_lookup"],
                 }
             )
-        for wallet in session.scalars(select(Wallet).where(Wallet.address.ilike(query.lower()))).all():
+        for wallet in session.scalars(select(Wallet).where(Wallet.address == normalized_address)).all():
             results.append(
                 {
                     "id": wallet.id,
@@ -239,20 +267,21 @@ def search_registry(session: Session, query: str, limit: int = 20) -> list[dict[
                 }
             )
 
-    for jurisdiction in session.scalars(select(Jurisdiction)).all():
-        scored = score_query_against_candidate(query, f"{jurisdiction.code} {jurisdiction.name}")
-        if scored.score >= 0.7:
-            results.append(
-                {
-                    "id": jurisdiction.code,
-                    "node_type": "jurisdiction",
-                    "label": jurisdiction.name,
-                    "score": round(scored.score, 3),
-                    "current_status": None,
-                    "source_of_truth": None,
-                    "matched_on": scored.reasons,
-                }
-            )
+    if not address_query:
+        for jurisdiction in session.scalars(select(Jurisdiction)).all():
+            scored = score_query_against_candidate(query, f"{jurisdiction.code} {jurisdiction.name}")
+            if scored.score >= 0.7:
+                results.append(
+                    {
+                        "id": jurisdiction.code,
+                        "node_type": "jurisdiction",
+                        "label": jurisdiction.name,
+                        "score": round(scored.score, 3),
+                        "current_status": None,
+                        "source_of_truth": None,
+                        "matched_on": scored.reasons,
+                    }
+                )
 
     results.sort(key=lambda item: item["score"], reverse=True)
     deduped: list[dict[str, Any]] = []
@@ -274,6 +303,17 @@ def _entity_relationships(session: Session, entity_id: str) -> list[Relationship
             or_(
                 (Relationship.from_node_type == "entity") & (Relationship.from_node_id == entity_id),
                 (Relationship.to_node_type == "entity") & (Relationship.to_node_id == entity_id),
+            )
+        )
+    ).all()
+
+
+def _node_relationships(session: Session, node_type: str, node_id: str) -> list[Relationship]:
+    return session.scalars(
+        select(Relationship).where(
+            or_(
+                (Relationship.from_node_type == node_type) & (Relationship.from_node_id == node_id),
+                (Relationship.to_node_type == node_type) & (Relationship.to_node_id == node_id),
             )
         )
     ).all()
@@ -310,6 +350,68 @@ def get_entity_graph(session: Session, entity_id: str) -> dict[str, Any]:
     return {"nodes": list(nodes.values()), "edges": edges}
 
 
+def get_node_graph(session: Session, node_type: str, node_id: str) -> dict[str, Any]:
+    if node_type == "entity":
+        return get_entity_graph(session, node_id)
+
+    model = NODE_MODEL_MAP.get(node_type)
+    if model is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unsupported graph node")
+    _get_required(session, model, node_id)
+
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: list[dict[str, Any]] = []
+    base = serialize_node(session, node_type, node_id)
+    if base:
+        nodes[base["id"]] = base
+
+    if node_type == "jurisdiction":
+        links = session.execute(
+            select(EntityJurisdiction, Entity)
+            .join(Entity, Entity.id == EntityJurisdiction.entity_id)
+            .where(EntityJurisdiction.jurisdiction_code == node_id)
+        ).all()
+        for link, entity in links:
+            entity_node = serialize_node(session, "entity", entity.id)
+            jurisdiction_node = serialize_node(session, "jurisdiction", node_id)
+            if entity_node:
+                nodes[entity_node["id"]] = entity_node
+            if jurisdiction_node:
+                nodes[jurisdiction_node["id"]] = jurisdiction_node
+            if entity_node and jurisdiction_node:
+                edges.append(
+                    {
+                        "id": f"jurisdiction:{link.id}",
+                        "source": entity_node["id"],
+                        "target": jurisdiction_node["id"],
+                        "edge_type": link.role,
+                        "confidence": 1.0,
+                        "inferred": False,
+                    }
+                )
+        return {"nodes": list(nodes.values()), "edges": edges}
+
+    for relationship in _node_relationships(session, node_type, node_id):
+        source_node = serialize_node(session, relationship.from_node_type, relationship.from_node_id)
+        target_node = serialize_node(session, relationship.to_node_type, relationship.to_node_id)
+        if source_node:
+            nodes[source_node["id"]] = source_node
+        if target_node:
+            nodes[target_node["id"]] = target_node
+        if source_node and target_node:
+            edges.append(
+                {
+                    "id": relationship.id,
+                    "source": source_node["id"],
+                    "target": target_node["id"],
+                    "edge_type": relationship.edge_type,
+                    "confidence": relationship.confidence,
+                    "inferred": relationship.is_inferred,
+                }
+            )
+    return {"nodes": list(nodes.values()), "edges": edges}
+
+
 def get_entity_timeline(session: Session, entity_id: str) -> list[dict[str, Any]]:
     _get_required(session, Entity, entity_id)
     events = session.scalars(
@@ -341,19 +443,31 @@ def get_entity_evidence(session: Session, entity_id: str) -> list[dict[str, Any]
             artifact.id: artifact
             for artifact in session.scalars(select(SourceArtifact).where(SourceArtifact.id.in_([item.source_artifact_id for item in evidence if item.source_artifact_id]))).all()
         }
-        source_lookup = {source.id: source.slug for source in session.scalars(select(Source)).all()}
+        source_lookup = {
+            source.id: {
+                "slug": source.slug,
+                "name": source.name,
+                "source_type": source.source_type,
+            }
+            for source in session.scalars(select(Source)).all()
+        }
         for item in evidence:
             artifact = artifacts.get(item.source_artifact_id or "")
-            source_slug = source_lookup.get(artifact.source_id, "unknown") if artifact else "unknown"
+            source_meta = source_lookup.get(artifact.source_id) if artifact else None
             items.append(
                 {
                     "id": item.id,
                     "artifact_id": item.source_artifact_id,
-                    "source": source_slug,
+                    "source": source_meta["slug"] if source_meta else "unknown",
+                    "source_name": source_meta["name"] if source_meta else "unknown",
+                    "source_type": source_meta["source_type"] if source_meta else "unknown",
                     "evidence_type": item.evidence_type,
                     "uri": item.evidence_uri or (artifact.remote_url if artifact else None),
+                    "field_path": item.field_path,
                     "snippet": item.snippet,
                     "captured_at": item.captured_at,
+                    "artifact_fetched_at": artifact.fetched_at if artifact else None,
+                    "artifact_published_at": artifact.published_at if artifact else None,
                 }
             )
     return items
@@ -389,6 +503,8 @@ def get_entity_profile(session: Session, entity_id: str) -> dict[str, Any]:
         "canonical_name": entity.canonical_name,
         "aliases": [row.alias for row in alias_rows],
         "entity_type": entity.entity_type,
+        "first_seen_at": entity.first_seen_at,
+        "last_seen_at": entity.last_seen_at,
         "jurisdictions": [
             {
                 "code": jurisdiction.code,

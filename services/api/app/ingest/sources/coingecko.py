@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -7,13 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.db.models import Entity, Source
+from app.db.models import Contract, Entity, Source, SourceArtifact
 from app.ingest.pipeline import (
     ensure_aliases,
     ensure_contract,
-    ensure_domain,
     ensure_relationship,
     ensure_relationship_evidence,
+    ensure_domain,
     ensure_whitepaper,
     fetch_and_store_artifact,
     finish_ingestion_run,
@@ -195,3 +197,118 @@ async def hydrate_coin_detail(session: Session, settings: Settings, coin_id: str
 
     session.commit()
     return entity
+
+
+def _materialize_catalog_contract_hits(
+    session: Session,
+    *,
+    source: Source,
+    artifact: SourceArtifact,
+    coin: dict[str, Any],
+    matches: list[tuple[str, str]],
+) -> list[Contract]:
+    if not coin.get("name"):
+        return []
+
+    entity = get_or_create_entity(
+        session,
+        name=coin["name"],
+        entity_type="brand",
+        status="market_metadata",
+        source_of_truth=source.slug,
+        metadata={"coingecko_id": coin.get("id"), "symbol": coin.get("symbol")},
+    )
+    if coin.get("symbol"):
+        ensure_aliases(session, entity.id, [coin["symbol"].upper()], artifact.id)
+
+    materialized: list[Contract] = []
+    for chain, address in matches:
+        contract = ensure_contract(
+            session,
+            chain=chain,
+            address=address,
+            token_symbol=coin.get("symbol"),
+            token_name=coin.get("name"),
+            metadata={"coingecko_id": coin.get("id"), "source": source.slug},
+        )
+        relationship = ensure_relationship(
+            session,
+            from_node_type="entity",
+            from_node_id=entity.id,
+            to_node_type="contract",
+            to_node_id=contract.id,
+            edge_type="linked_contract",
+        )
+        ensure_relationship_evidence(
+            session,
+            relationship_id=relationship.id,
+            source_artifact_id=artifact.id,
+            evidence_type="json_field",
+            field_path=f"platforms.{chain}",
+            snippet=address,
+        )
+        materialized.append(contract)
+
+    record_snapshot(
+        session,
+        scope=f"coingecko:coin:{coin.get('id')}",
+        payload=coin,
+        entity_id=entity.id,
+        source_id=source.id,
+        artifact_id=artifact.id,
+        summary_label=f"CoinGecko coin {coin.get('name')}",
+    )
+    return materialized
+
+
+def materialize_contracts_from_catalog_address(
+    session: Session,
+    *,
+    address: str,
+    chain: str | None = None,
+) -> list[Contract]:
+    source = session.scalar(select(Source).where(Source.slug == "coingecko"))
+    if source is None:
+        return []
+
+    artifact = session.scalar(
+        select(SourceArtifact)
+        .where(SourceArtifact.source_id == source.id, SourceArtifact.artifact_key == "catalog")
+        .order_by(SourceArtifact.fetched_at.desc())
+    )
+    if artifact is None or not artifact.storage_uri:
+        return []
+
+    artifact_path = Path(artifact.storage_uri)
+    if not artifact_path.exists():
+        return []
+
+    normalized_address = address.lower()
+    target_chain = chain.lower() if chain else None
+    coins: list[dict[str, Any]] = json.loads(artifact_path.read_text(encoding="utf-8"))
+    materialized: list[Contract] = []
+
+    for coin in coins:
+        matches: list[tuple[str, str]] = []
+        for platform, platform_address in (coin.get("platforms") or {}).items():
+            if not platform_address:
+                continue
+            platform_id = (platform or "native").lower()
+            if target_chain and platform_id != target_chain:
+                continue
+            if platform_address.lower() == normalized_address:
+                matches.append((platform_id, platform_address.lower()))
+        if matches:
+            materialized.extend(
+                _materialize_catalog_contract_hits(
+                    session,
+                    source=source,
+                    artifact=artifact,
+                    coin=coin,
+                    matches=matches,
+                )
+            )
+
+    if materialized:
+        session.commit()
+    return materialized

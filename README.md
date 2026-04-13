@@ -1,6 +1,8 @@
-# Regulatory Register Graph API
+# VOTO
 
-Production-oriented MVP for a graph-native crypto regulatory intelligence platform built around real public data only.
+Verified Oversight & Trust Oracle.
+
+Production-oriented MVP for a crypto compliance intelligence platform built around real public data only.
 
 ## Product architecture
 
@@ -191,6 +193,16 @@ POST /admin/ingest/coingecko?limit=500
 - `web`
 
 Object artifacts are mounted into a persistent volume for raw evidence retention.
+
+### Hosted test stack
+
+For a low-cost hosted setup, use:
+
+- `Vercel` for `apps/web`
+- `Render` free web service for `services/api`
+- `Supabase` Postgres for `DATABASE_URL`
+
+Deployment notes live in [docs/deployment-vercel-render-supabase.md](docs/deployment-vercel-render-supabase.md).
 
 ## Local setup instructions
 

@@ -1,9 +1,14 @@
 import {
   type AlertEvent,
+  type ContractProfile,
+  type DomainProfile,
   type EntityProfile,
   type GraphResponse,
+  type JurisdictionProfile,
+  type SearchResponse,
   type SourceStatus,
   type TimelineEvent,
+  type WalletProfile,
   type Watchlist,
 } from "@/types/api";
 
@@ -36,6 +41,13 @@ export async function getSources() {
   return safeRequest<SourceStatus[]>("/sources", []);
 }
 
+export async function searchRegistry(query: string, limit = 12) {
+  return safeRequest<SearchResponse>(`/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
+    query,
+    results: [],
+  });
+}
+
 export async function getEntity(id: string) {
   return request<EntityProfile>(`/entity/${id}`);
 }
@@ -44,8 +56,36 @@ export async function getEntityGraph(id: string) {
   return request<GraphResponse>(`/entity/${id}/graph`);
 }
 
+export async function getNodeGraph(nodeType: string, id: string) {
+  return request<GraphResponse>(`/graph/${nodeType}/${id}`);
+}
+
 export async function getEntityTimeline(id: string) {
   return request<TimelineEvent[]>(`/entity/${id}/timeline`);
+}
+
+export async function getContract(chain: string, address: string) {
+  return safeRequest<ContractProfile | { detail: string }>(`/check/contract?chain=${encodeURIComponent(chain)}&address=${encodeURIComponent(address)}`, {
+    detail: "source unavailable",
+  });
+}
+
+export async function getDomain(hostname: string) {
+  return safeRequest<DomainProfile | { detail: string }>(`/check/domain?hostname=${encodeURIComponent(hostname)}`, {
+    detail: "source unavailable",
+  });
+}
+
+export async function getWallet(chain: string, address: string) {
+  return safeRequest<WalletProfile | { detail: string }>(`/check/wallet?chain=${encodeURIComponent(chain)}&address=${encodeURIComponent(address)}`, {
+    detail: "source unavailable",
+  });
+}
+
+export async function getJurisdiction(code: string) {
+  return safeRequest<JurisdictionProfile | { detail: string }>(`/jurisdiction/${encodeURIComponent(code)}`, {
+    detail: "source unavailable",
+  });
 }
 
 export async function getOpenApiDocument() {

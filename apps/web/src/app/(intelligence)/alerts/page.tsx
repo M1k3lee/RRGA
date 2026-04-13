@@ -1,10 +1,5 @@
-import { AlertsCenter } from "@/components/alerts-center";
-import { ShellFrame } from "@/components/shell-frame";
+import { redirect } from "next/navigation";
 
 export default function AlertsPage() {
-  return (
-    <ShellFrame activePath="/alerts" eyebrow="Watchlists and notifications" title="Alerts Center">
-      <AlertsCenter />
-    </ShellFrame>
-  );
+  redirect("/watchlists");
 }

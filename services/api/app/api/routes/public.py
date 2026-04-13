@@ -10,10 +10,15 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.models import AlertEvent, Entity, Watchlist
 from app.db.session import get_db
-from app.ingest.sources.coingecko import hydrate_coin_detail, ingest_coingecko_catalog
+from app.ingest.sources.coingecko import (
+    hydrate_coin_detail,
+    ingest_coingecko_catalog,
+    materialize_contracts_from_catalog_address,
+)
 from app.ingest.sources.esma import ingest_esma
 from app.ingest.sources.etherscan import hydrate_contract_from_etherscan
 from app.ingest.sources.ofac import ingest_ofac
+from app.matching.resolution import is_evm_address
 from app.schemas.api import AlertTestRequest, SearchResponse, WatchlistCreateRequest
 from app.services.alerts import create_test_alert, create_watchlist_with_rule
 from app.services.auth import require_api_user
@@ -26,6 +31,7 @@ from app.services.catalog import (
     get_entity_profile,
     get_entity_timeline,
     get_jurisdiction_profile,
+    get_node_graph,
     get_wallet_profile,
     list_source_statuses,
     search_registry,
@@ -45,6 +51,8 @@ def health(session: Session = Depends(get_db)) -> dict:
 
 @router.get("/search", response_model=SearchResponse)
 def search(q: str = Query(..., min_length=1), limit: int = Query(default=20, le=50), session: Session = Depends(get_db)):
+    if is_evm_address(q) and not search_registry(session, q, limit=1):
+        materialize_contracts_from_catalog_address(session, address=q)
     return {"query": q, "results": search_registry(session, q, limit)}
 
 
@@ -56,9 +64,19 @@ async def entity_detail(entity_id: str, session: Session = Depends(get_db)):
     return get_entity_profile(session, entity_id)
 
 
+@router.get("/check/entity")
+async def check_entity(id: str = Query(...), session: Session = Depends(get_db)):
+    return await entity_detail(id, session)
+
+
 @router.get("/entity/{entity_id}/graph")
 def entity_graph(entity_id: str, session: Session = Depends(get_db)):
     return get_entity_graph(session, entity_id)
+
+
+@router.get("/graph/{node_type}/{node_id}")
+def node_graph(node_type: str, node_id: str, session: Session = Depends(get_db)):
+    return get_node_graph(session, node_type, node_id)
 
 
 @router.get("/entity/{entity_id}/timeline")
@@ -76,10 +94,25 @@ async def contract_detail(chain: str, address: str, session: Session = Depends(g
     try:
         return get_contract_profile(session, chain, address)
     except Exception:
+        contract = next(
+            iter(materialize_contracts_from_catalog_address(session, address=address, chain=chain)),
+            None,
+        )
+        if contract is not None:
+            return get_contract_profile(session, chain, address)
         contract = await hydrate_contract_from_etherscan(session, get_settings(), chain=chain, address=address)
         if contract is None:
             return {"detail": "source unavailable"}
         return get_contract_profile(session, chain, address)
+
+
+@router.get("/check/contract")
+async def check_contract(
+    chain: str = Query(...),
+    address: str = Query(...),
+    session: Session = Depends(get_db),
+):
+    return await contract_detail(chain, address, session)
 
 
 @router.get("/domain/{hostname}")
@@ -87,9 +120,23 @@ def domain_detail(hostname: str, session: Session = Depends(get_db)):
     return get_domain_profile(session, hostname)
 
 
+@router.get("/check/domain")
+def check_domain(hostname: str = Query(...), session: Session = Depends(get_db)):
+    return domain_detail(hostname, session)
+
+
 @router.get("/wallet/{chain}/{address}")
 def wallet_detail(chain: str, address: str, session: Session = Depends(get_db)):
     return get_wallet_profile(session, chain, address)
+
+
+@router.get("/check/wallet")
+def check_wallet(
+    chain: str = Query(...),
+    address: str = Query(...),
+    session: Session = Depends(get_db),
+):
+    return wallet_detail(chain, address, session)
 
 
 @router.get("/jurisdiction/{code}")

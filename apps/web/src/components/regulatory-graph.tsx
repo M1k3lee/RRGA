@@ -44,6 +44,7 @@ const nodePalette: Record<string, string> = {
   brand: "#C4B5FD",
   contract: "#6EE7B7",
   wallet: "#FDE68A",
+  jurisdiction: "#60A5FA",
 };
 
 function radiusFor(node: GraphNode) {

@@ -1,12 +1,27 @@
 import { ShellFrame } from "@/components/shell-frame";
 import { StatusBadge } from "@/components/status-badge";
 import { getSources } from "@/lib/api";
+import { formatTimestamp } from "@/lib/format";
 
 export default async function SourcesPage() {
   const sources = await getSources();
 
   return (
-    <ShellFrame activePath="/sources" eyebrow="Operational visibility" title="Source Monitor">
+    <ShellFrame
+      activePath="/sources"
+      eyebrow="Source-backed intelligence coverage"
+      title="Sources"
+      dock={
+        <div className="space-y-4">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Trust model</p>
+          <div className="space-y-3 text-sm leading-7 text-white/60">
+            <p>These sources power the legitimacy and regulatory answer layer.</p>
+            <p>Official registers and sanctions sources take priority over enrichment feeds whenever records conflict.</p>
+            <p>If a source is stale or unavailable, that state is shown directly instead of being hidden.</p>
+          </div>
+        </div>
+      }
+    >
       <div className="grid gap-4 xl:grid-cols-2">
         {sources.map((source) => (
           <div key={source.slug} className="rounded-[26px] border border-white/10 bg-black/20 p-5">
@@ -26,7 +41,7 @@ export default async function SourcesPage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Last artifact</p>
                 <p className="mt-3 text-sm leading-7 text-white/70">
-                  {source.last_artifact_at ? new Date(source.last_artifact_at).toLocaleString() : "source unavailable"}
+                  {formatTimestamp(source.last_artifact_at)}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">

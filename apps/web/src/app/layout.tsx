@@ -15,8 +15,9 @@ const displayFont = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Regulatory Register Graph API",
-  description: "Live regulatory intelligence graph for crypto compliance, market structure, and evidence-backed monitoring.",
+  title: "VOTO | The regulatory intelligence layer for crypto",
+  description:
+    "VOTO helps serious crypto teams check legitimacy, regulatory status, warning signals, and sanctions exposure through source-backed intelligence and API-first workflows.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

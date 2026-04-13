@@ -8,6 +8,8 @@ const toneMap: Record<string, string> = {
   market_metadata: "border-cyan-400/40 bg-cyan-500/10 text-cyan-200",
   contract_observed: "border-violet-400/40 bg-violet-500/10 text-violet-200",
   verified: "border-cyan-400/40 bg-cyan-500/10 text-cyan-200",
+  observed: "border-sky-400/40 bg-sky-500/10 text-sky-200",
+  warning: "border-amber-400/40 bg-amber-500/10 text-amber-200",
 };
 
 export function StatusBadge({ value, className }: { value?: string | null; className?: string }) {

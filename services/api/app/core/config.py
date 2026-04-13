@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "Regulatory Register Graph API"
+    app_name: str = "VOTO - Verified Oversight & Trust Oracle"
     env: str = Field(default="development", alias="RRGA_ENV")
     secret_key: str = Field(default="change-me", alias="RRGA_SECRET_KEY")
     database_url: str = Field(default="sqlite:///./rrga.db", alias="DATABASE_URL")

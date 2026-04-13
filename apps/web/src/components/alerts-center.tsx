@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { createWatchlist, getAlerts, getWatchlists } from "@/lib/api";
+import { formatTimestamp } from "@/lib/format";
 import type { AlertEvent, Watchlist } from "@/types/api";
 
 export function AlertsCenter() {
@@ -20,7 +21,7 @@ export function AlertsCenter() {
       const [watchlistItems, alertItems] = await Promise.all([getWatchlists(apiKey), getAlerts(apiKey)]);
       setWatchlists(watchlistItems);
       setAlerts(alertItems);
-      setStatus("Loaded authenticated alert state.");
+      setStatus("Loaded source-backed monitoring state.");
     } catch {
       setStatus("Unable to load alerts with that API key.");
     }
@@ -47,11 +48,11 @@ export function AlertsCenter() {
     <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
       <section className="space-y-4 rounded-[26px] border border-white/10 bg-black/20 p-4">
         <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Authenticated Access</p>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Authenticated access</p>
           <input
             value={apiKey}
             onChange={(event) => setApiKey(event.target.value)}
-            placeholder="Paste x-api-key to manage watchlists"
+            placeholder="Paste x-api-key to manage monitoring"
             className="mt-4 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/35"
           />
           <button
@@ -65,7 +66,7 @@ export function AlertsCenter() {
         </div>
 
         <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Create Watchlist</p>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Create watchlist</p>
           <div className="mt-4 space-y-3">
             <input
               value={label}
@@ -123,13 +124,13 @@ export function AlertsCenter() {
         </div>
 
         <div className="rounded-[26px] border border-white/10 bg-black/20 p-4">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Alert Inbox</p>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Alert inbox</p>
           <div className="mt-4 space-y-3">
             {alerts.length ? (
               alerts.map((alert) => (
                 <div key={alert.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <p className="text-sm text-white">{alert.title}</p>
-                  <p className="mt-1 text-xs text-white/45">{new Date(alert.created_at).toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-white/45">{formatTimestamp(alert.created_at)}</p>
                   <pre className="mt-3 overflow-x-auto rounded-2xl bg-black/30 p-3 text-xs text-cyan-100/80">
                     {JSON.stringify(alert.payload, null, 2)}
                   </pre>
@@ -137,7 +138,8 @@ export function AlertsCenter() {
               ))
             ) : (
               <p className="text-sm leading-7 text-white/55">
-                The inbox only shows stored alert events. Use the backend `/alerts/test` endpoint or live watchlist-triggered events to populate it.
+                The inbox only shows stored alert events. Use the backend `/alerts/test` endpoint or live
+                watchlist-triggered events to populate it.
               </p>
             )}
           </div>
