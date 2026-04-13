@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
+from typing import Self
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine.url import make_url
+from sqlalchemy.exc import ArgumentError as SAArgumentError
 
 
 def _parse_cors_origins_env(raw: str) -> list[str]:
@@ -67,6 +70,41 @@ class Settings(BaseSettings):
     )
     coingecko_api_base: str = "https://api.coingecko.com/api/v3"
     etherscan_api_base: str = "https://api.etherscan.io/v2/api"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalize_database_url(cls, v: object) -> str:
+        if v is None:
+            return "sqlite:///./rrga.db"
+        s = str(v).strip().strip('"').strip("'")
+        if not s:
+            return "sqlite:///./rrga.db"
+        if s.startswith("postgres://"):
+            s = "postgresql://" + s[len("postgres://") :]
+        return s
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def _database_url_must_parse(cls, v: str) -> str:
+        try:
+            make_url(v)
+        except SAArgumentError as e:
+            raise ValueError(
+                "DATABASE_URL is not a valid SQLAlchemy URL. On Render, set it to your "
+                "Postgres connection string (no surrounding quotes; one line). "
+                "Example: postgresql+psycopg://USER:PASSWORD@HOST:5432/DATABASE"
+            ) from e
+        return v
+
+    @model_validator(mode="after")
+    def _production_requires_postgres(self) -> Self:
+        if self.env == "production" and self.database_url.strip().lower().startswith("sqlite"):
+            raise ValueError(
+                "RRGA_ENV is production but DATABASE_URL is missing, empty, or still SQLite. "
+                "In the Render dashboard, set DATABASE_URL to your hosted Postgres URL "
+                "(for example from Supabase or a Render Postgres instance)."
+            )
+        return self
 
     @computed_field
     @property
