@@ -1,10 +1,30 @@
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _parse_cors_origins_env(raw: str) -> list[str]:
+    """CORS_ORIGINS is read as plain text so Render can use comma-separated URLs.
+
+    pydantic-settings JSON-decodes env values for ``list[str]`` before validators run,
+    which breaks empty strings and comma-separated values.
+    """
+    s = raw.strip()
+    if not s:
+        return []
+    if s.startswith("["):
+        try:
+            parsed = json.loads(s)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, list):
+            return [str(x).strip() for x in parsed if str(x).strip()]
+    return [part.strip() for part in s.split(",") if part.strip()]
 
 
 class Settings(BaseSettings):
@@ -17,7 +37,7 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     object_storage_root: Path = Field(default=Path("./data/artifacts"), alias="OBJECT_STORAGE_ROOT")
     public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"], alias="CORS_ORIGINS")
+    cors_origins_raw: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
     etherscan_api_key: str | None = Field(default=None, alias="ETHERSCAN_API_KEY")
     coingecko_api_key: str | None = Field(default=None, alias="COINGECKO_API_KEY")
     bootstrap_admin_email: str | None = Field(default=None, alias="RRGA_BOOTSTRAP_ADMIN_EMAIL")
@@ -48,12 +68,10 @@ class Settings(BaseSettings):
     coingecko_api_base: str = "https://api.coingecko.com/api/v3"
     etherscan_api_base: str = "https://api.etherscan.io/v2/api"
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def _split_origins(cls, value: str | list[str]) -> list[str]:
-        if isinstance(value, list):
-            return value
-        return [origin.strip() for origin in value.split(",") if origin.strip()]
+    @computed_field
+    @property
+    def cors_origins(self) -> list[str]:
+        return _parse_cors_origins_env(self.cors_origins_raw)
 
 
 @lru_cache
