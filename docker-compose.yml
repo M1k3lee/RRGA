@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: rrga
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      RRGA_ENV: production
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/rrga
+      REDIS_URL: redis://redis:6379/0
+      OBJECT_STORAGE_ROOT: /app/storage
+      PUBLIC_BASE_URL: http://localhost:8000
+      CORS_ORIGINS: http://localhost:3000
+      RRGA_SECRET_KEY: change-me
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - artifact_data:/app/storage
+    depends_on:
+      - postgres
+      - redis
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  artifact_data:

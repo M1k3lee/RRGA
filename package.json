@@ -1,0 +1,21 @@
+{
+  "name": "regulatory-register-graph-api",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "lint:web": "npm --prefix apps/web run lint",
+    "dev:api": "python -m uvicorn app.main:app --reload --app-dir services/api",
+    "test:api": "python -m pytest services/api/app/tests",
+    "format:api": "python -m ruff format services/api/app",
+    "lint:api": "python -m ruff check services/api/app",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

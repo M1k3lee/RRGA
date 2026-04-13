@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.db.models import AlertEvent, Entity, Watchlist
+from app.db.session import get_db
+from app.ingest.sources.coingecko import hydrate_coin_detail, ingest_coingecko_catalog
+from app.ingest.sources.esma import ingest_esma
+from app.ingest.sources.etherscan import hydrate_contract_from_etherscan
+from app.ingest.sources.ofac import ingest_ofac
+from app.schemas.api import AlertTestRequest, SearchResponse, WatchlistCreateRequest
+from app.services.alerts import create_test_alert, create_watchlist_with_rule
+from app.services.auth import require_api_user
+from app.services.catalog import (
+    get_contract_profile,
+    get_diff,
+    get_domain_profile,
+    get_entity_evidence,
+    get_entity_graph,
+    get_entity_profile,
+    get_entity_timeline,
+    get_jurisdiction_profile,
+    get_wallet_profile,
+    list_source_statuses,
+    search_registry,
+)
+
+router = APIRouter()
+
+
+@router.get("/health")
+def health(session: Session = Depends(get_db)) -> dict:
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow(),
+        "entity_count": session.scalar(select(func.count(Entity.id))) or 0,
+    }
+
+
+@router.get("/search", response_model=SearchResponse)
+def search(q: str = Query(..., min_length=1), limit: int = Query(default=20, le=50), session: Session = Depends(get_db)):
+    return {"query": q, "results": search_registry(session, q, limit)}
+
+
+@router.get("/entity/{entity_id}")
+async def entity_detail(entity_id: str, session: Session = Depends(get_db)):
+    entity = session.get(Entity, entity_id)
+    if entity and entity.source_of_truth == "coingecko" and not entity.summary and entity.metadata_json.get("coingecko_id"):
+        await hydrate_coin_detail(session, get_settings(), entity.metadata_json["coingecko_id"])
+    return get_entity_profile(session, entity_id)
+
+
+@router.get("/entity/{entity_id}/graph")
+def entity_graph(entity_id: str, session: Session = Depends(get_db)):
+    return get_entity_graph(session, entity_id)
+
+
+@router.get("/entity/{entity_id}/timeline")
+def entity_timeline(entity_id: str, session: Session = Depends(get_db)):
+    return get_entity_timeline(session, entity_id)
+
+
+@router.get("/entity/{entity_id}/evidence")
+def entity_evidence(entity_id: str, session: Session = Depends(get_db)):
+    return get_entity_evidence(session, entity_id)
+
+
+@router.get("/contract/{chain}/{address}")
+async def contract_detail(chain: str, address: str, session: Session = Depends(get_db)):
+    try:
+        return get_contract_profile(session, chain, address)
+    except Exception:
+        contract = await hydrate_contract_from_etherscan(session, get_settings(), chain=chain, address=address)
+        if contract is None:
+            return {"detail": "source unavailable"}
+        return get_contract_profile(session, chain, address)
+
+
+@router.get("/domain/{hostname}")
+def domain_detail(hostname: str, session: Session = Depends(get_db)):
+    return get_domain_profile(session, hostname)
+
+
+@router.get("/wallet/{chain}/{address}")
+def wallet_detail(chain: str, address: str, session: Session = Depends(get_db)):
+    return get_wallet_profile(session, chain, address)
+
+
+@router.get("/jurisdiction/{code}")
+def jurisdiction_detail(code: str, session: Session = Depends(get_db)):
+    return get_jurisdiction_profile(session, code)
+
+
+@router.get("/sources")
+def sources(session: Session = Depends(get_db)):
+    return list_source_statuses(session)
+
+
+@router.get("/diff")
+def diff(from_: datetime = Query(alias="from"), to: datetime = Query(...), session: Session = Depends(get_db)):
+    return get_diff(session, from_, to)
+
+
+@router.post("/watchlists")
+def create_watchlist(
+    payload: WatchlistCreateRequest,
+    session: Session = Depends(get_db),
+    user=Depends(require_api_user),
+):
+    watchlist = create_watchlist_with_rule(
+        session,
+        owner_id=user.id,
+        label=payload.label,
+        target_type=payload.target_type,
+        target_value=payload.target_value,
+        rule_type=payload.rule_type,
+        delivery_channel=payload.delivery_channel,
+        threshold=payload.threshold,
+        filters=payload.filters,
+    )
+    return {"id": watchlist.id, "label": watchlist.label, "target_type": watchlist.target_type}
+
+
+@router.post("/alerts/test")
+def test_alert(
+    payload: AlertTestRequest,
+    session: Session = Depends(get_db),
+    _user=Depends(require_api_user),
+):
+    event = create_test_alert(session, title=payload.title, payload=payload.payload)
+    return {"id": event.id, "status": event.status}
+
+
+@router.get("/alerts")
+def list_alerts(session: Session = Depends(get_db), _user=Depends(require_api_user)):
+    events = session.scalars(select(AlertEvent).order_by(AlertEvent.created_at.desc()).limit(100)).all()
+    return [
+        {
+            "id": event.id,
+            "title": event.title,
+            "status": event.status,
+            "payload": event.payload_json,
+            "created_at": event.created_at,
+        }
+        for event in events
+    ]
+
+
+@router.get("/watchlists")
+def list_watchlists(session: Session = Depends(get_db), user=Depends(require_api_user)):
+    items = session.scalars(select(Watchlist).where(Watchlist.owner_id == user.id).order_by(Watchlist.created_at.desc())).all()
+    return [
+        {
+            "id": item.id,
+            "label": item.label,
+            "target_type": item.target_type,
+            "target_value": item.target_value,
+            "filters": item.filters_json,
+        }
+        for item in items
+    ]
+
+
+@router.post("/admin/ingest/{source_slug}")
+async def trigger_ingest(source_slug: str, limit: int | None = None, session: Session = Depends(get_db), _user=Depends(require_api_user)):
+    settings = get_settings()
+    if source_slug == "esma_mica":
+        return await ingest_esma(session, settings)
+    if source_slug == "ofac_sdn":
+        return await ingest_ofac(session, settings, "ofac_sdn")
+    if source_slug == "ofac_consolidated":
+        return await ingest_ofac(session, settings, "ofac_consolidated")
+    if source_slug == "coingecko":
+        return await ingest_coingecko_catalog(session, settings, limit=limit)
+    return {"detail": "source unavailable"}
