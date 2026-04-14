@@ -23,6 +23,11 @@ export default async function SourcesPage() {
       }
     >
       <div className="grid gap-4 xl:grid-cols-2">
+        {sources.length === 0 && (
+          <div className="col-span-full rounded-[26px] border border-dashed border-white/10 bg-white/5 p-12 text-center">
+            <p className="text-sm text-white/45">No sources found. Ensure the API is connected and bootstrapped.</p>
+          </div>
+        )}
         {sources.map((source) => (
           <div key={source.slug} className="rounded-[26px] border border-white/10 bg-black/20 p-5">
             <div className="flex items-start justify-between gap-4">
