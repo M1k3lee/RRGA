@@ -12,12 +12,30 @@ import {
   type Watchlist,
 } from "@/types/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+/** Stay under Vercel's default serverless limit so RSC pages don't 504 while waiting on fetch. */
+const REQUEST_TIMEOUT_MS = 8_000;
+
+function getApiBase(): string | null {
+  const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");
+  if (fromEnv) {
+    return fromEnv;
+  }
+  // On Vercel, defaulting to localhost makes every server render hang until the platform times out.
+  if (process.env.VERCEL) {
+    return null;
+  }
+  return "http://localhost:8000";
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const base = getApiBase();
+  if (!base) {
+    throw new Error("Set NEXT_PUBLIC_API_BASE_URL to your public API URL (e.g. https://your-api.onrender.com)");
+  }
+  const response = await fetch(`${base}${path}`, {
     ...init,
     cache: "no-store",
+    signal: init?.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -30,6 +48,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function safeRequest<T>(path: string, fallback: T, init?: RequestInit): Promise<T> {
+  if (!getApiBase()) {
+    return fallback;
+  }
   try {
     return await request<T>(path, init);
   } catch {
