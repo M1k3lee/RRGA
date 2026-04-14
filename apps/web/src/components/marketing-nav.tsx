@@ -23,12 +23,12 @@ export function MarketingNav({ activePath = "/" }: { activePath?: string }) {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative h-14 w-14 overflow-hidden rounded-xl border border-white/20 bg-white/5 shadow-lg transition-transform group-hover:scale-105">
+            <div className="relative h-14 w-auto overflow-hidden rounded-xl border border-white/20 bg-white/5 shadow-lg transition-transform group-hover:scale-105">
               <Image
                 src="/voto-logo.png"
                 alt="VOTO logo"
-                fill
-                className="object-contain p-1"
+                height={56}
+                className="h-14 w-auto object-contain"
                 priority
               />
             </div>
