@@ -194,28 +194,27 @@ def sources(session: Session = Depends(get_db)) -> list[dict]:
 
 
 @router.post("/sources/sync")
-async def sync_sources(
-    background_tasks: BackgroundTasks,
-):
-    """Trigger a background sync of all sources."""
-    settings = get_settings()
+async def sync_sources():
+    """Manually trigger source ingestion. No auth required for debugging."""
+    import asyncio
+    import threading
+    from app.ingest.sources.coingecko import ingest_coingecko_catalog
+    from app.ingest.sources.esma import ingest_esma
+    from app.ingest.sources.ofac import ingest_ofac
+    from app.db.session import SessionLocal
 
     async def _sync():
-        from app.db.session import SessionLocal
-        from app.ingest.sources.coingecko import ingest_coingecko_catalog
-        from app.ingest.sources.esma import ingest_esma
-        from app.ingest.sources.ofac import ingest_ofac
-
         db = SessionLocal()
         try:
-            await ingest_esma(db, settings)
-            await ingest_ofac(db, settings, "ofac_sdn")
-            await ingest_coingecko_catalog(db, settings, limit=100)
+            await ingest_esma(db, get_settings())
+            await ingest_ofac(db, get_settings(), "ofac_sdn")
+            await ingest_coingecko_catalog(db, get_settings(), limit=50)
         finally:
             db.close()
 
-    background_tasks.add_task(_sync)
-    return {"status": "sync started in background"}
+    t = threading.Thread(target=lambda: asyncio.run(_sync()), daemon=True)
+    t.start()
+    return {"status": "sync started"}
 
 
 @router.get("/diff")

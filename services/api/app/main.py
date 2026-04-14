@@ -40,45 +40,53 @@ async def lifespan(app: FastAPI):
     # We run this in a daemon thread so it doesn't block the event loop.
     def _startup_sync_thread():
         import asyncio
+        import logging
         from app.ingest.sources.coingecko import ingest_coingecko_catalog
         from app.ingest.sources.esma import ingest_esma
         from app.ingest.sources.ofac import ingest_ofac
+
+        logger = logging.getLogger(__name__)
 
         async def _sync():
             from sqlalchemy import func, select
             from app.db.models import SourceArtifact
             from app.db.session import SessionLocal
 
+            logger.info("Background sync: starting...")
             # Wait to ensure Render's initial health checks pass
             await asyncio.sleep(60)
             db = SessionLocal()
             try:
                 count = db.scalar(select(func.count(SourceArtifact.id))) or 0
+                logger.info(f"Background sync: found {count} existing artifacts")
                 if count == 0:
-                    logger.info("Fresh database detected; starting background source ingestion...")
+                    logger.info("Background sync: starting ESMA ingestion...")
                     try:
                         await ingest_esma(db, settings)
-                        logger.info("ESMA ingestion completed")
+                        logger.info("Background sync: ESMA ingestion completed")
                     except Exception as e:
-                        logger.error(f"ESMA ingestion failed: {e}")
+                        logger.error(f"Background sync: ESMA ingestion failed: {e}")
 
+                    logger.info("Background sync: starting OFAC SDN ingestion...")
                     try:
                         await ingest_ofac(db, settings, "ofac_sdn")
-                        logger.info("OFAC SDN ingestion completed")
+                        logger.info("Background sync: OFAC SDN ingestion completed")
                     except Exception as e:
-                        logger.error(f"OFAC SDN ingestion failed: {e}")
+                        logger.error(f"Background sync: OFAC SDN ingestion failed: {e}")
 
+                    logger.info("Background sync: starting CoinGecko ingestion...")
                     try:
                         await ingest_coingecko_catalog(db, settings, limit=50)
-                        logger.info("CoinGecko ingestion completed")
+                        logger.info("Background sync: CoinGecko ingestion completed")
                     except Exception as e:
-                        logger.error(f"CoinGecko ingestion failed: {e}")
+                        logger.error(f"Background sync: CoinGecko ingestion failed: {e}")
                 else:
-                    logger.info(f"Database already contains {count} artifacts; skipping startup sync")
+                    logger.info(f"Background sync: skipping, already have {count} artifacts")
             except Exception as e:
-                logger.error(f"Startup sync failed: {e}")
+                logger.error(f"Background sync: unexpected error: {e}")
             finally:
                 db.close()
+                logger.info("Background sync: done")
 
         asyncio.run(_sync())
 
