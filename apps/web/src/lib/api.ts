@@ -20,8 +20,9 @@ function getApiBase(): string | null {
   if (fromEnv) {
     return fromEnv;
   }
-  // On Vercel, defaulting to localhost makes every server render hang until the platform times out.
-  if (process.env.VERCEL) {
+  // On Render/Production, we must NOT default to localhost on the server,
+  // as the API lives on a separate service and localhost:8000 will just time out.
+  if (typeof window === "undefined" && process.env.NODE_ENV === "production") {
     return null;
   }
   return "http://localhost:8000";

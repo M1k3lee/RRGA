@@ -47,4 +47,5 @@ services:
       - key: NEXT_TELEMETRY_DISABLED
         value: "1"
       - key: NEXT_PUBLIC_API_BASE_URL
+        # Set this to the public URL of your voto-api service (e.g., https://voto-api.onrender.com)
         sync: false

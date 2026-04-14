@@ -2,23 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.models import AlertEvent, Entity, Watchlist
+from app.db.models import AlertEvent, Entity, Source, Watchlist
 from app.db.session import get_db
-from app.ingest.sources.coingecko import (
-    hydrate_coin_detail,
-    ingest_coingecko_catalog,
-    materialize_contracts_from_catalog_address,
-)
-from app.ingest.sources.esma import ingest_esma
-from app.ingest.sources.etherscan import hydrate_contract_from_etherscan
-from app.ingest.sources.ofac import ingest_ofac
-from app.matching.resolution import is_evm_address
+from app.matching.resolution import is_evm_address, resolve_address
 from app.schemas.api import AlertTestRequest, SearchResponse, WatchlistCreateRequest
 from app.services.alerts import create_test_alert, create_watchlist_with_rule
 from app.services.auth import require_api_user
@@ -42,15 +34,19 @@ router = APIRouter()
 
 @router.get("/health")
 def health(session: Session = Depends(get_db)) -> dict:
+    from app.db.models import SourceArtifact, IngestionRun
     return {
         "status": "ok",
         "timestamp": datetime.utcnow(),
         "entity_count": session.scalar(select(func.count(Entity.id))) or 0,
+        "artifact_count": session.scalar(select(func.count(SourceArtifact.id))) or 0,
+        "last_run": session.scalar(select(IngestionRun.status).order_by(IngestionRun.started_at.desc()).limit(1)),
     }
 
 
 @router.get("/search", response_model=SearchResponse)
 def search(q: str = Query(..., min_length=1), limit: int = Query(default=20, le=50), session: Session = Depends(get_db)):
+    from app.ingest.sources.coingecko import materialize_contracts_from_catalog_address
     if is_evm_address(q) and not search_registry(session, q, limit=1):
         materialize_contracts_from_catalog_address(session, address=q)
     return {"query": q, "results": search_registry(session, q, limit)}
@@ -58,6 +54,7 @@ def search(q: str = Query(..., min_length=1), limit: int = Query(default=20, le=
 
 @router.get("/entity/{entity_id}")
 async def entity_detail(entity_id: str, session: Session = Depends(get_db)):
+    from app.ingest.sources.coingecko import hydrate_coin_detail
     entity = session.get(Entity, entity_id)
     if entity and entity.source_of_truth == "coingecko" and not entity.summary and entity.metadata_json.get("coingecko_id"):
         await hydrate_coin_detail(session, get_settings(), entity.metadata_json["coingecko_id"])
@@ -91,6 +88,8 @@ def entity_evidence(entity_id: str, session: Session = Depends(get_db)):
 
 @router.get("/contract/{chain}/{address}")
 async def contract_detail(chain: str, address: str, session: Session = Depends(get_db)):
+    from app.ingest.sources.coingecko import materialize_contracts_from_catalog_address
+    from app.ingest.sources.etherscan import hydrate_contract_from_etherscan
     try:
         return get_contract_profile(session, chain, address)
     except Exception:
@@ -147,6 +146,31 @@ def jurisdiction_detail(code: str, session: Session = Depends(get_db)):
 @router.get("/sources")
 def sources(session: Session = Depends(get_db)):
     return list_source_statuses(session)
+
+
+@router.post("/sources/sync")
+async def sync_sources(
+    background_tasks: BackgroundTasks,
+):
+    """Trigger a background sync of all sources."""
+    settings = get_settings()
+
+    async def _sync():
+        from app.db.session import SessionLocal
+        from app.ingest.sources.coingecko import ingest_coingecko_catalog
+        from app.ingest.sources.esma import ingest_esma
+        from app.ingest.sources.ofac import ingest_ofac
+
+        db = SessionLocal()
+        try:
+            await ingest_esma(db, settings)
+            await ingest_ofac(db, settings, "ofac_sdn")
+            await ingest_coingecko_catalog(db, settings, limit=100)
+        finally:
+            db.close()
+
+    background_tasks.add_task(_sync)
+    return {"status": "sync started in background"}
 
 
 @router.get("/diff")
@@ -216,6 +240,9 @@ def list_watchlists(session: Session = Depends(get_db), user=Depends(require_api
 
 @router.post("/admin/ingest/{source_slug}")
 async def trigger_ingest(source_slug: str, limit: int | None = None, session: Session = Depends(get_db), _user=Depends(require_api_user)):
+    from app.ingest.sources.coingecko import ingest_coingecko_catalog
+    from app.ingest.sources.esma import ingest_esma
+    from app.ingest.sources.ofac import ingest_ofac
     settings = get_settings()
     if source_slug == "esma_mica":
         return await ingest_esma(session, settings)

@@ -63,10 +63,17 @@ def hash_api_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def ensure_bootstrap_data(session: Session, settings: Settings) -> None:
+    logger.info("Starting bootstrap data check...")
     for source_data in BASE_SOURCES:
         existing = session.scalar(select(Source).where(Source.slug == source_data["slug"]))
         if existing is None:
+            logger.info(f"Adding bootstrap source: {source_data['slug']}")
             session.add(Source(**source_data))
 
     if settings.bootstrap_admin_email and settings.bootstrap_api_key:
