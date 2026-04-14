@@ -162,8 +162,35 @@ def jurisdiction_detail(code: str, session: Session = Depends(get_db)):
 
 
 @router.get("/sources")
-def sources(session: Session = Depends(get_db)):
-    return list_source_statuses(session)
+def sources(session: Session = Depends(get_db)) -> list[dict]:
+    from app.db.models import SourceArtifact, IngestionRun
+    sources = session.scalars(select(Source).order_by(Source.slug)).all()
+    statuses = []
+    for source in sources:
+        last_artifact = session.scalar(
+            select(func.max(SourceArtifact.fetched_at)).where(SourceArtifact.source_id == source.id)
+        )
+        last_runs = session.scalars(
+            select(IngestionRun.status)
+            .where(IngestionRun.source_id == source.id)
+            .order_by(IngestionRun.started_at.desc())
+            .limit(3)
+        ).all()
+        artifact_count = session.scalar(
+            select(func.count(SourceArtifact.id)).where(SourceArtifact.source_id == source.id)
+        ) or 0
+        statuses.append(
+            {
+                "slug": source.slug,
+                "name": source.name,
+                "source_type": source.source_type,
+                "enabled": source.enabled,
+                "last_artifact_at": last_artifact.isoformat() if last_artifact else None,
+                "last_run_status": last_runs[0] if last_runs else None,
+                "artifact_count": artifact_count,
+            }
+        )
+    return statuses
 
 
 @router.post("/sources/sync")

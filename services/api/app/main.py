@@ -86,6 +86,8 @@ async def lifespan(app: FastAPI):
         t = threading.Thread(target=_startup_sync_thread, daemon=True)
         t.start()
         logger.info("Background sync thread started")
+    else:
+        logger.info("Not in production mode, skipping background sync")
 
     yield
 
