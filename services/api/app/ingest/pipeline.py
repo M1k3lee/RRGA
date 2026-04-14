@@ -84,8 +84,13 @@ async def fetch_and_store_artifact(
     published_at: datetime | None = None,
     headers: dict[str, str] | None = None,
 ) -> ArtifactEnvelope:
+    import asyncio
+    # Yield to event loop before network request
+    await asyncio.sleep(0)
     response = await client.get(url, follow_redirects=True, headers=headers)
     response.raise_for_status()
+    # Yield to event loop after network request
+    await asyncio.sleep(0)
     raw_bytes = response.content
     checksum = sha256_hexdigest(raw_bytes)
     relative_path = f"{source.slug}/{artifact_key}/{checksum}.{artifact_type}"

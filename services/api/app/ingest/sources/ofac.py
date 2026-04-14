@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -104,6 +105,10 @@ async def ingest_ofac(session: Session, settings: Settings, slug: str) -> dict[s
         publication_date = parse_date(_text(root, "ofac:publshInformation/ofac:Publish_Date"))
 
         for entry in root.findall("ofac:sdnEntry", NAMESPACE):
+            # Yield to event loop
+            if metrics["records"] % 20 == 0:
+                await asyncio.sleep(0)
+
             uid = _text(entry, "ofac:uid")
             label, aliases = _names(entry)
             if not uid or not label:
