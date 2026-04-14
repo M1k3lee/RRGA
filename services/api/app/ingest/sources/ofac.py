@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -32,7 +33,9 @@ NAMESPACE = {"ofac": "https://sanctionslistservice.ofac.treas.gov/api/Publicatio
 def _text(node: ET.Element | None, path: str) -> str | None:
     if node is None:
         return None
-    found = node.find(path, NAMESPACE)
+    # iterparse doesn't support the ofac: prefix in find(), it expects {url}tag
+    full_path = path.replace("ofac:", f"{{{NAMESPACE['ofac']}}}")
+    found = node.find(full_path)
     if found is None or found.text is None:
         return None
     return found.text.strip()
@@ -43,7 +46,8 @@ def _names(entry: ET.Element) -> tuple[str, list[str]]:
     last_name = _text(entry, "ofac:lastName") or ""
     label = " ".join(part for part in [first_name, last_name] if part).strip() or last_name
     aliases = []
-    for aka in entry.findall("ofac:akaList/ofac:aka", NAMESPACE):
+    aka_list_path = f"{{{NAMESPACE['ofac']}}}akaList/{{{NAMESPACE['ofac']}}}aka"
+    for aka in entry.findall(aka_list_path):
         alias_first = _text(aka, "ofac:firstName")
         alias_last = _text(aka, "ofac:lastName") or ""
         alias = " ".join(part for part in [alias_first, alias_last] if part).strip() or alias_last
@@ -53,9 +57,10 @@ def _names(entry: ET.Element) -> tuple[str, list[str]]:
 
 
 def _collect_programs(entry: ET.Element) -> list[str]:
+    program_path = f"{{{NAMESPACE['ofac']}}}programList/{{{NAMESPACE['ofac']}}}program"
     return [
         program.text.strip()
-        for program in entry.findall("ofac:programList/ofac:program", NAMESPACE)
+        for program in entry.findall(program_path)
         if program.text
     ]
 
@@ -64,7 +69,8 @@ def _collect_id_metadata(entry: ET.Element) -> tuple[list[dict[str, Any]], list[
     identifiers: list[dict[str, Any]] = []
     wallets: list[tuple[str, str]] = []
     websites: list[str] = []
-    for item in entry.findall("ofac:idList/ofac:id", NAMESPACE):
+    id_list_path = f"{{{NAMESPACE['ofac']}}}idList/{{{NAMESPACE['ofac']}}}id"
+    for item in entry.findall(id_list_path):
         id_type = _text(item, "ofac:idType") or ""
         id_number = _text(item, "ofac:idNumber") or ""
         if not id_number:
@@ -101,18 +107,29 @@ async def ingest_ofac(session: Session, settings: Settings, slug: str) -> dict[s
             url=url,
         )
         metrics["artifacts"] += 1
-        root = ET.fromstring(artifact.raw_bytes)
-        publication_date = parse_date(_text(root, "ofac:publshInformation/ofac:Publish_Date"))
-
-        for entry in root.findall("ofac:sdnEntry", NAMESPACE):
-            # Frequent yielding for Render stability (10ms pause every 5 records)
-            if metrics["records"] % 5 == 0:
-                await asyncio.sleep(0.01)
-            
-            uid = _text(entry, "ofac:uid")
-            label, aliases = _names(entry)
-            if not uid or not label:
+        
+        # Use iterparse to handle large XML files with low memory and frequent event loop yielding
+        context = ET.iterparse(io.BytesIO(artifact.raw_bytes), events=("start", "end"))
+        publication_date = None
+        
+        for event, elem in context:
+            if event == "end" and elem.tag == f"{{{NAMESPACE['ofac']}}}Publish_Date":
+                publication_date = parse_date(elem.text)
                 continue
+            
+            if event == "end" and elem.tag == f"{{{NAMESPACE['ofac']}}}sdnEntry":
+                entry = elem
+                
+                # Frequent yielding for Render stability (10ms pause every 5 records)
+                if metrics["records"] % 5 == 0:
+                    await asyncio.sleep(0.01)
+                
+                uid = _text(entry, "ofac:uid")
+                label, aliases = _names(entry)
+                if not uid or not label:
+                    # Clear processed element to free memory
+                    elem.clear()
+                    continue
 
             entity = get_or_create_entity(
                 session,
@@ -223,6 +240,9 @@ async def ingest_ofac(session: Session, settings: Settings, slug: str) -> dict[s
                 artifact_id=artifact.artifact.id,
                 summary_label=f"OFAC {list_type} entry {label}",
             )
+            
+            # Clear processed element to free memory
+            elem.clear()
 
         finish_ingestion_run(session, run, status="completed", metrics=metrics, artifact_id=artifact.artifact.id)
     return metrics

@@ -113,12 +113,13 @@ async def fetch_and_store_artifact(
     return ArtifactEnvelope(artifact=artifact, raw_bytes=raw_bytes, text=decode_payload(raw_bytes))
 
 
-def csv_rows(text: str) -> list[dict[str, str]]:
+from collections.abc import Generator
+
+
+def csv_rows(text: str) -> Generator[dict[str, str], None, None]:
     reader = csv.DictReader(io.StringIO(text))
-    rows: list[dict[str, str]] = []
     for row in reader:
-        rows.append({(key or "").replace("\ufeff", "").strip(): (value or "").strip() for key, value in row.items()})
-    return rows
+        yield {(key or "").replace("\ufeff", "").strip(): (value or "").strip() for key, value in row.items()}
 
 
 def get_or_create_entity(
