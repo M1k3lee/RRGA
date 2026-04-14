@@ -145,6 +145,10 @@ Redeploy the API after changing CORS.
 
 **Tradeoffs (same as the API on free Render):** the web service spins down when idle; the first load after sleep can take tens of seconds. You stay within a single provider’s free tier for both tiers.
 
+**If the browser shows “Not Found” (Render’s plain page, not your Next.js UI):** that almost always means the **hostname does not match your service**. Open the **`voto-web` service in the Render dashboard → Overview** and use the **exact** `https://…onrender.com` URL shown there (Render may change the subdomain if the name was already taken, for example `voto-web-xxxx` instead of `voto-web`). Do not guess the URL from the service display name alone.
+
+**If the deploy failed:** confirm **Root Directory** is the **repository root** (`.`) and the build command is still `npm ci && npm run build:web`, matching `render.yaml`. A wrong root (for example only `apps/web`) combined with that build command will fail because `package-lock.json` lives at the repo root.
+
 **Other free hosts:** you can also point a static or Node host (for example [Cloudflare Pages](https://pages.cloudflare.com/) or [Netlify](https://www.netlify.com/pricing/)) at `apps/web` with the same build/start pattern and `NEXT_PUBLIC_API_BASE_URL`; this repo does not generate those configs automatically.
 
 ## 4. First boot checklist
