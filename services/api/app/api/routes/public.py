@@ -324,3 +324,14 @@ async def trigger_ingest(source_slug: str, limit: int | None = None, session: Se
     if source_slug == "coingecko":
         return await ingest_coingecko_catalog(session, settings, limit=limit)
     return {"detail": "source unavailable"}
+
+@router.get("/debug-sync")
+async def debug_sync(session: Session = Depends(get_db)):
+    from app.ingest.sources.coingecko import ingest_coingecko_catalog
+    try:
+        await ingest_coingecko_catalog(session, get_settings(), limit=10)
+        session.commit()
+        return {"status": "success"}
+    except Exception as e:
+        session.rollback()
+        return {"status": "error", "message": str(e)}
