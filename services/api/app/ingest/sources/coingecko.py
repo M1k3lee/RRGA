@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -58,6 +59,10 @@ async def ingest_coingecko_catalog(
             coins = coins[:limit]
 
         for coin in coins:
+            # Yield to event loop to keep health checks responsive
+            if metrics["entities"] % 10 == 0:
+                await asyncio.sleep(0)
+            
             if not coin.get("name"):
                 continue
             entity = get_or_create_entity(

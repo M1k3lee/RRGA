@@ -32,6 +32,11 @@ from app.services.catalog import (
 router = APIRouter()
 
 
+@router.get("/")
+def root():
+    return {"status": "VOTO API is online"}
+
+
 @router.get("/health")
 def health(session: Session = Depends(get_db)) -> dict:
     from app.db.models import SourceArtifact, IngestionRun

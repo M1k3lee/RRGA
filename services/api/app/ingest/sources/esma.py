@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 
@@ -91,6 +92,8 @@ async def ingest_esma(session: Session, settings: Settings) -> dict[str, int]:
         source_publication_date = _publication_from_page(page.text)
 
         for key, url in settings.esma_csv_urls.items():
+            # Yield to event loop to keep health checks alive
+            await asyncio.sleep(0)
             artifact = await fetch_and_store_artifact(
                 session=session,
                 client=client,
@@ -107,6 +110,10 @@ async def ingest_esma(session: Session, settings: Settings) -> dict[str, int]:
 
             profile = FILE_PROFILES[key]
             for row in csv_rows(artifact.text):
+                # Yield every few rows to keep the event loop from being blocked by DB writes
+                if metrics["records"] % 20 == 0:
+                    await asyncio.sleep(0)
+
                 subject_name = _row_name(row)
                 if not subject_name:
                     continue
