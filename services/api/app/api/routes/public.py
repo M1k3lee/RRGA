@@ -206,7 +206,7 @@ def sources(session: Session = Depends(get_db)) -> list[dict]:
                 "name": source.name,
                 "source_type": source.source_type,
                 "enabled": source.enabled,
-                "last_artifact_at": last_artifact.isoformat() if last_artifact else None,
+                "last_artifact_at": last_artifact.isoformat() if hasattr(last_artifact, "isoformat") else str(last_artifact) if last_artifact else None,
                 "last_run_status": last_runs[0] if last_runs else None,
                 "artifact_count": artifact_count,
             }
