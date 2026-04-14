@@ -62,6 +62,27 @@ def health_stats(session: Session = Depends(get_db)) -> dict:
     }
 
 
+@router.get("/debug/db")
+def debug_db(session: Session = Depends(get_db)):
+    from app.db.models import Source, SourceArtifact, IngestionRun
+    source_count = session.scalar(select(func.count(Source.id))) or 0
+    artifact_count = session.scalar(select(func.count(SourceArtifact.id))) or 0
+    run_count = session.scalar(select(func.count(IngestionRun.id))) or 0
+    return {
+        "source_count": source_count,
+        "artifact_count": artifact_count,
+        "run_count": run_count,
+    }
+
+
+@router.get("/debug/bootstrap")
+def debug_bootstrap(session: Session = Depends(get_db)):
+    from app.db.bootstrap import ensure_bootstrap_data
+    from app.core.config import get_settings
+    ensure_bootstrap_data(session, get_settings())
+    return {"status": "bootstrap re-run complete"}
+
+
 @router.get("/search", response_model=SearchResponse)
 def search(q: str = Query(..., min_length=1), limit: int = Query(default=20, le=50), session: Session = Depends(get_db)):
     from app.ingest.sources.coingecko import materialize_contracts_from_catalog_address
@@ -164,9 +185,9 @@ def jurisdiction_detail(code: str, session: Session = Depends(get_db)):
 @router.get("/sources")
 def sources(session: Session = Depends(get_db)) -> list[dict]:
     from app.db.models import SourceArtifact, IngestionRun
-    sources = session.scalars(select(Source).order_by(Source.slug)).all()
+    all_sources = session.scalars(select(Source).order_by(Source.slug)).all()
     statuses = []
-    for source in sources:
+    for source in all_sources:
         last_artifact = session.scalar(
             select(func.max(SourceArtifact.fetched_at)).where(SourceArtifact.source_id == source.id)
         )
@@ -190,7 +211,7 @@ def sources(session: Session = Depends(get_db)) -> list[dict]:
                 "artifact_count": artifact_count,
             }
         )
-    return statuses
+    return {"count": len(statuses), "sources": statuses}
 
 
 @router.post("/sources/sync")
