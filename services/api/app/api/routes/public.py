@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.models import AlertEvent, Entity, Source, Watchlist
 from app.db.session import get_db
-from app.matching.resolution import is_evm_address, resolve_address
+from app.matching.resolution import is_evm_address
 from app.schemas.api import AlertTestRequest, SearchResponse, WatchlistCreateRequest
 from app.services.alerts import create_test_alert, create_watchlist_with_rule
 from app.services.auth import require_api_user
