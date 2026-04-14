@@ -2,13 +2,13 @@
 
 This stack is the cleanest low-cost way to run the current codebase:
 
-- `Vercel` for the Next.js frontend
+- **Frontend:** either `Vercel` (convenient) or a **second free Render web service** (avoids Vercel limits)
 - `Render` free web service for the FastAPI backend
 - `Supabase` Postgres for the database
 
 ## Recommended architecture
 
-- `apps/web` deploys to Vercel
+- `apps/web` deploys to **Vercel** *or* **Render** (`voto-web` in `render.yaml`)
 - `services/api` deploys to Render
 - `DATABASE_URL` points to your Supabase Postgres connection
 - `NEXT_PUBLIC_API_BASE_URL` points to your Render API URL
@@ -123,6 +123,30 @@ After deploy:
 3. test `/lookup`
 4. confirm the frontend can reach `/sources` on the API
 
+## 3b. Free frontend on Render (skip Vercel)
+
+If Vercel shows **Exceeded free resources** (bandwidth, function time, or other caps), host the Next app on Render instead. The repo root `render.yaml` defines a second service, **`voto-web`**, on the **Node** runtime.
+
+After you sync the Blueprint (or create the service manually from the same settings):
+
+- **Root Directory**: `.` (repository root)
+- **Build Command**: `npm ci && npm run build:web`
+- **Start Command**: `npm --prefix apps/web run start`
+- **Health Check Path**: `/`
+- **Plan**: `Free`
+
+Set **`NEXT_PUBLIC_API_BASE_URL`** on `voto-web` to your **API** URL (for example `https://voto-api.onrender.com`), **without** a trailing slash. Render injects this during the build so the client bundle points at the API.
+
+Then on the **API** service, set **`CORS_ORIGINS`** to your **frontend** URL (comma-separated if you use both), for example:
+
+`https://voto-web.onrender.com`
+
+Redeploy the API after changing CORS.
+
+**Tradeoffs (same as the API on free Render):** the web service spins down when idle; the first load after sleep can take tens of seconds. You stay within a single provider’s free tier for both tiers.
+
+**Other free hosts:** you can also point a static or Node host (for example [Cloudflare Pages](https://pages.cloudflare.com/) or [Netlify](https://www.netlify.com/pricing/)) at `apps/web` with the same build/start pattern and `NEXT_PUBLIC_API_BASE_URL`; this repo does not generate those configs automatically.
+
 ## 4. First boot checklist
 
 Use this order:
@@ -131,9 +155,9 @@ Use this order:
 2. deploy API to Render
 3. verify `/health`
 4. run ingestion jobs
-5. deploy frontend to Vercel with `NEXT_PUBLIC_API_BASE_URL`
-6. set `CORS_ORIGINS` on Render to the final Vercel URL
-7. redeploy Render once after CORS is correct
+5. deploy the frontend (Vercel **or** Render `voto-web`) with `NEXT_PUBLIC_API_BASE_URL` set to the API URL
+6. set `CORS_ORIGINS` on the API to the final **frontend** URL (or comma-separated list if you use more than one)
+7. redeploy the API after CORS is correct
 
 ## 5. What will work well
 

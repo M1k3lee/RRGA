@@ -1,3 +1,5 @@
+# Free stack: both services can use Render's free tier (cold starts; separate limits from Vercel).
+# Set NEXT_PUBLIC_API_BASE_URL on voto-web to your voto-api URL before/after first API deploy.
 services:
   - type: web
     name: voto-api
@@ -31,3 +33,18 @@ services:
         sync: false
       - key: OBJECT_STORAGE_ROOT
         value: /tmp/voto-artifacts
+
+  - type: web
+    name: voto-web
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm ci && npm run build:web
+    startCommand: npm --prefix apps/web run start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
