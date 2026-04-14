@@ -110,10 +110,10 @@ async def ingest_esma(session: Session, settings: Settings) -> dict[str, int]:
 
             profile = FILE_PROFILES[key]
             for row in csv_rows(artifact.text):
-                # Yield every few rows to keep the event loop from being blocked by DB writes
-                if metrics["records"] % 20 == 0:
-                    await asyncio.sleep(0)
-
+                # Yield frequently to keep the event loop responsive on low-resource environments
+                if metrics["records"] % 5 == 0:
+                    await asyncio.sleep(0.01)
+                
                 subject_name = _row_name(row)
                 if not subject_name:
                     continue

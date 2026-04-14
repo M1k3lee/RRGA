@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
 
     # On Render/Production, if the database has no artifacts, trigger a background sync.
     async def _startup_sync():
-        # Wait 30s to ensure Render's initial health checks pass and the instance is fully warmed up
-        await asyncio.sleep(30)
+        # Wait 60s to ensure Render's initial health checks pass and the instance is fully warmed up
+        await asyncio.sleep(60)
         db = SessionLocal()
         try:
             from sqlalchemy import func, select
