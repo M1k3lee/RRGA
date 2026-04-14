@@ -94,6 +94,9 @@ class Settings(BaseSettings):
             return "sqlite:///./rrga.db"
         if s.startswith("postgres://"):
             s = "postgresql://" + s[len("postgres://") :]
+        # This project uses psycopg3 only; bare postgresql:// would load the missing psycopg2 dialect.
+        if s.startswith("postgresql://") and not s.startswith("postgresql+"):
+            s = "postgresql+psycopg://" + s[len("postgresql://") :]
         # Supabase from IPv4-only hosts (e.g. Render) needs TLS; pooler URL is still safest.
         if "supabase.co" in s and not s.startswith("sqlite"):
             low = s.lower()
