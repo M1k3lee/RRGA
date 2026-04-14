@@ -4,7 +4,6 @@ import {
   House,
   LogIn,
   Orbit,
-  Radar,
   ScrollText,
   Search,
   Siren,
@@ -12,6 +11,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import Image from "next/image";
 
 import { ContextDock, ContextDockSection, DockMetric } from "@/components/context-dock";
 import { cn } from "@/lib/utils";
@@ -46,14 +46,19 @@ export function ShellFrame({
         <header className="rounded-[28px] border border-white/10 bg-white/5 px-5 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
-                <Radar className="h-6 w-6 text-cyan-200" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <p className="text-[11px] uppercase tracking-[0.34em] text-cyan-100/55">VOTO</p>
-                  <p className="text-xs text-white/40">The regulatory intelligence layer for crypto</p>
+              <Link href="/" className="flex items-center gap-3 group">
+                <div className="relative h-[87px] w-auto overflow-hidden rounded-xl border border-white/20 bg-white/5 shadow-lg transition-transform group-hover:scale-105">
+                  <Image
+                    src="/voto-logo.png"
+                    alt="VOTO logo"
+                    height={87}
+                    width={87}
+                    className="h-[87px] w-auto object-contain"
+                    priority
+                  />
                 </div>
+              </Link>
+              <div>
                 <p className="mt-2 text-[11px] uppercase tracking-[0.34em] text-white/45">{eyebrow}</p>
                 <h1 className="font-sans text-2xl font-semibold text-white">{title}</h1>
               </div>
