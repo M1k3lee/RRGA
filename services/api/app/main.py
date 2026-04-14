@@ -41,65 +41,91 @@ async def lifespan(app: FastAPI):
     def _startup_sync_thread():
         import asyncio
         import logging
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import func, select, desc
+        from app.db.models import SourceArtifact, IngestionRun
+        from app.db.session import SessionLocal
+        
         from app.ingest.sources.coingecko import ingest_coingecko_catalog
         from app.ingest.sources.esma import ingest_esma
         from app.ingest.sources.ofac import ingest_ofac
 
         logger = logging.getLogger(__name__)
 
-        async def _sync():
-            from sqlalchemy import func, select
-            from app.db.models import SourceArtifact
-            from app.db.session import SessionLocal
+        async def _sync_loop():
+            logger.info("Background sync loop: starting...")
+            # Short wait to let the application bind to the port and health checks to pass
+            await asyncio.sleep(10)
+            
+            while True:
+                db = SessionLocal()
+                try:
+                    count = db.scalar(select(func.count(SourceArtifact.id))) or 0
+                    
+                    # Check the last successful ingestion time
+                    last_run = db.scalars(
+                        select(IngestionRun)
+                        .where(IngestionRun.status == "success")
+                        .order_by(desc(IngestionRun.completed_at))
+                        .limit(1)
+                    ).first()
+                    
+                    needs_update = False
+                    if count == 0:
+                        logger.info("Background sync loop: No data found, update required.")
+                        needs_update = True
+                    elif last_run and last_run.completed_at:
+                        # Make completed_at timezone aware if it isn't
+                        completed_at = last_run.completed_at
+                        if completed_at.tzinfo is None:
+                            completed_at = completed_at.replace(tzinfo=timezone.utc)
+                            
+                        age = datetime.now(timezone.utc) - completed_at
+                        if age > timedelta(hours=24):
+                            logger.info(f"Background sync loop: Data is {age.total_seconds()/3600:.1f} hours old, update required.")
+                            needs_update = True
 
-            logger.info("Background sync: starting...")
-            # Wait to ensure Render's initial health checks pass
-            await asyncio.sleep(60)
-            db = SessionLocal()
-            try:
-                count = db.scalar(select(func.count(SourceArtifact.id))) or 0
-                logger.info(f"Background sync: found {count} existing artifacts")
-                if count == 0:
-                    logger.info("Background sync: starting ESMA ingestion...")
-                    try:
-                        await ingest_esma(db, settings)
-                        db.commit()
-                        logger.info("Background sync: ESMA ingestion completed")
-                    except Exception as e:
-                        logger.error(f"Background sync: ESMA ingestion failed: {e}")
-                        db.rollback()
+                    if needs_update:
+                        logger.info("Background sync loop: starting routine data ingestions...")
+                        try:
+                            await ingest_esma(db, settings)
+                            db.commit()
+                        except Exception as e:
+                            logger.error(f"ESMA ingestion failed: {e}")
+                            db.rollback()
 
-                    logger.info("Background sync: starting OFAC SDN ingestion...")
-                    try:
-                        await ingest_ofac(db, settings, "ofac_sdn")
-                        db.commit()
-                        logger.info("Background sync: OFAC SDN ingestion completed")
-                    except Exception as e:
-                        logger.error(f"Background sync: OFAC SDN ingestion failed: {e}")
-                        db.rollback()
+                        try:
+                            await ingest_ofac(db, settings, "ofac_sdn")
+                            db.commit()
+                        except Exception as e:
+                            logger.error(f"OFAC SDN ingestion failed: {e}")
+                            db.rollback()
 
-                    logger.info("Background sync: starting CoinGecko ingestion...")
-                    try:
-                        await ingest_coingecko_catalog(db, settings, limit=50)
-                        db.commit()
-                        logger.info("Background sync: CoinGecko ingestion completed")
-                    except Exception as e:
-                        logger.error(f"Background sync: CoinGecko ingestion failed: {e}")
-                        db.rollback()
-                else:
-                    logger.info(f"Background sync: skipping, already have {count} artifacts")
-            except Exception as e:
-                logger.error(f"Background sync: unexpected error: {e}")
-            finally:
-                db.close()
-                logger.info("Background sync: done")
+                        try:
+                            await ingest_coingecko_catalog(db, settings, limit=500)
+                            db.commit()
+                        except Exception as e:
+                            logger.error(f"CoinGecko ingestion failed: {e}")
+                            db.rollback()
+                            
+                        logger.info("Background sync loop: Routine data ingestions completed.")
+                    else:
+                        logger.info("Background sync loop: Data is up to date, skipping.")
+                        
+                except Exception as e:
+                    logger.error(f"Background sync loop: unexpected error: {e}")
+                finally:
+                    db.close()
+                    
+                # Wait 12 hours before checking again (in case the server stays awake)
+                await asyncio.sleep(43200)
 
-        asyncio.run(_sync())
+        asyncio.run(_sync_loop())
 
     if settings.env == "production":
         t = threading.Thread(target=_startup_sync_thread, daemon=True)
         t.start()
-        logger.info("Background sync thread started")
+        logger.info("Background auto-sync thread started")
     else:
         logger.info("Not in production mode, skipping background sync")
 
