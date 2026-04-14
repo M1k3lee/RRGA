@@ -324,3 +324,18 @@ async def trigger_ingest(source_slug: str, limit: int | None = None, session: Se
     if source_slug == "coingecko":
         return await ingest_coingecko_catalog(session, settings, limit=limit)
     return {"detail": "source unavailable"}
+f r o m   a p p . a p i . r o u t e s . p u b l i c   i m p o r t   r o u t e r 
+ f r o m   a p p . d b . s e s s i o n   i m p o r t   g e t _ d b 
+ f r o m   f a s t a p i   i m p o r t   D e p e n d s 
+ @ r o u t e r . g e t ( " / t r i g g e r - s y n c - i n l i n e " ) 
+ a s y n c   d e f   s y n c _ i n l i n e ( d b = D e p e n d s ( g e t _ d b ) ) : 
+         f r o m   a p p . i n g e s t . s o u r c e s . c o i n g e c k o   i m p o r t   i n g e s t _ c o i n g e c k o _ c a t a l o g 
+         f r o m   a p p . c o r e . c o n f i g   i m p o r t   g e t _ s e t t i n g s 
+         t r y : 
+                 a w a i t   i n g e s t _ c o i n g e c k o _ c a t a l o g ( d b ,   g e t _ s e t t i n g s ( ) ,   l i m i t = 5 0 ) 
+                 d b . c o m m i t ( ) 
+                 r e t u r n   { " s t a t u s " :   " s u c c e s s " } 
+         e x c e p t   E x c e p t i o n   a s   e : 
+                 d b . r o l l b a c k ( ) 
+                 r e t u r n   { " s t a t u s " :   " e r r o r " ,   " e r r o r " :   s t r ( e ) }  
+ 
