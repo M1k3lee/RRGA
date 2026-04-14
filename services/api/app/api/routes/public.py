@@ -335,3 +335,36 @@ async def debug_sync(session: Session = Depends(get_db)):
     except Exception as e:
         session.rollback()
         return {"status": "error", "message": str(e)}
+
+@router.get("/debug-sources")
+def debug_sources(session: Session = Depends(get_db)):
+    import traceback
+    try:
+        from app.db.models import SourceArtifact, IngestionRun, Source
+        all_sources = session.scalars(select(Source).order_by(Source.slug)).all()
+        statuses = []
+        for source in all_sources:
+            last_artifact = session.scalar(
+                select(func.max(SourceArtifact.fetched_at)).where(SourceArtifact.source_id == source.id)
+            )
+            last_runs = session.scalars(
+                select(IngestionRun.status)
+                .where(IngestionRun.source_id == source.id)
+                .order_by(IngestionRun.started_at.desc())
+                .limit(3)
+            ).all()
+            artifact_count = session.scalar(
+                select(func.count(SourceArtifact.id)).where(SourceArtifact.source_id == source.id)
+            ) or 0
+            statuses.append({
+                "slug": source.slug,
+                "name": source.name,
+                "source_type": source.source_type,
+                "enabled": source.enabled,
+                "last_artifact_at": last_artifact.isoformat() if hasattr(last_artifact, "isoformat") else str(last_artifact) if last_artifact else None,
+                "last_run_status": last_runs[0] if last_runs else None,
+                "artifact_count": artifact_count,
+            })
+        return {"count": len(statuses), "sources": statuses}
+    except Exception as e:
+        return {"error": traceback.format_exc()}
