@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Braces, House, LogIn, Orbit, ScrollText, Search, Siren, TowerControl, WalletCards } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -20,12 +21,26 @@ export function MarketingNav({ activePath = "/" }: { activePath?: string }) {
   return (
     <header className="sticky top-0 z-40 rounded-[28px] border border-white/10 bg-[rgba(4,9,12,0.72)] px-5 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.34em] text-cyan-100/45">The regulatory intelligence layer for crypto</p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="font-[var(--font-display)] text-lg text-white sm:text-xl">VOTO</h1>
-            <p className="text-xs text-white/45">Verified Oversight &amp; Trust Oracle</p>
-          </div>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="relative h-10 w-10 overflow-hidden rounded-lg border border-white/20 bg-white/5 shadow-lg transition-transform group-hover:scale-105">
+              <Image
+                src="/voto-logo.png"
+                alt="VOTO logo"
+                fill
+                className="object-contain p-1"
+                priority
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-[var(--font-display)] text-xl font-bold tracking-tight text-white">
+                VOTO
+              </span>
+              <span className="hidden text-[10px] uppercase tracking-widest text-cyan-100/40 sm:block">
+                Verified Oversight &amp; Trust Oracle
+              </span>
+            </div>
+          </Link>
         </div>
         <div className="flex flex-col gap-3 lg:items-end">
           <nav className="flex flex-wrap gap-2">
