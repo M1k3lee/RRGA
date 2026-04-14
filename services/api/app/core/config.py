@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Self
@@ -9,6 +10,18 @@ from pydantic import Field, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.exc import ArgumentError as SAArgumentError
+
+
+def _is_supabase_direct_db_url(database_url: str) -> bool:
+    """Supabase direct connections (port 5432 on db.*) are IPv6-first; Render is often IPv4-only."""
+    try:
+        parsed = make_url(database_url)
+    except Exception:
+        return False
+    host = (parsed.host or "").lower()
+    if not (host.startswith("db.") and host.endswith(".supabase.co")):
+        return False
+    return int(parsed.port or 5432) == 5432
 
 
 def _parse_cors_origins_env(raw: str) -> list[str]:
@@ -103,12 +116,25 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _production_requires_postgres(self) -> Self:
-        if self.env == "production" and self.database_url.strip().lower().startswith("sqlite"):
+        url = self.database_url.strip()
+        low = url.lower()
+        if self.env == "production" and low.startswith("sqlite"):
             raise ValueError(
                 "RRGA_ENV is production but DATABASE_URL is missing, empty, or still SQLite. "
                 "In the Render dashboard, set DATABASE_URL to your hosted Postgres URL "
                 "(for example from Supabase or a Render Postgres instance)."
             )
+        if self.env == "production" and _is_supabase_direct_db_url(url):
+            flag = os.environ.get("RRGA_SUPABASE_ALLOW_DIRECT", "").strip().lower()
+            if flag not in ("1", "true", "yes"):
+                raise ValueError(
+                    "DATABASE_URL uses Supabase's direct host (db.<project>.supabase.co on port 5432). "
+                    "That endpoint is IPv6-first; Render often cannot reach it. "
+                    "In Supabase: Connect -> Session pooler, copy the URI, and paste it as "
+                    "DATABASE_URL on Render (host like aws-0-<region>.pooler.supabase.com, "
+                    "username postgres.<project_ref>). "
+                    "If you use Supabase IPv4 direct add-on, set RRGA_SUPABASE_ALLOW_DIRECT=1."
+                )
         return self
 
     @computed_field
