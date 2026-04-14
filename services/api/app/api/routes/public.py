@@ -42,8 +42,14 @@ def root():
 
 
 @router.get("/health")
-def health() -> dict:
-    return {"status": "ok", "timestamp": datetime.utcnow()}
+def health(session: Session = Depends(get_db)) -> dict:
+    from app.db.models import Source
+    source_count = session.scalar(select(func.count(Source.id))) or 0
+    return {
+        "status": "ok", 
+        "timestamp": datetime.utcnow(),
+        "source_count": source_count
+    }
 
 
 @router.get("/health/stats")
