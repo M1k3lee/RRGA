@@ -37,8 +37,9 @@ async def lifespan(app: FastAPI):
 
     # On Render/Production, if the database has no artifacts, trigger a background sync.
     async def _startup_sync():
-        # Wait 60s to ensure Render's initial health checks pass and the instance is fully warmed up
-        await asyncio.sleep(60)
+        # Wait 120s to ensure Render's initial health checks pass and the instance is fully warmed up.
+        # Render Free instances can be very slow to stabilize.
+        await asyncio.sleep(120)
         db = SessionLocal()
         try:
             from sqlalchemy import func, select
@@ -94,4 +95,4 @@ app.add_middleware(
 )
 
 app.include_router(router)
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+# Instrumentator().instrument(app).expose(app, endpoint="/metrics")

@@ -120,9 +120,9 @@ async def ingest_ofac(session: Session, settings: Settings, slug: str) -> dict[s
             if event == "end" and elem.tag == f"{{{NAMESPACE['ofac']}}}sdnEntry":
                 entry = elem
                 
-                # Frequent yielding for Render stability (10ms pause every 5 records)
+                # Moderate yielding for Render stability (50ms pause every 5 records)
                 if metrics["records"] % 5 == 0:
-                    await asyncio.sleep(0.01)
+                    await asyncio.sleep(0.05)
                 
                 uid = _text(entry, "ofac:uid")
                 label, aliases = _names(entry)
@@ -131,118 +131,118 @@ async def ingest_ofac(session: Session, settings: Settings, slug: str) -> dict[s
                     elem.clear()
                     continue
 
-            entity = get_or_create_entity(
-                session,
-                name=label,
-                entity_type=(_text(entry, "ofac:sdnType") or "sanctions_subject").lower(),
-                status="sanctioned",
-                source_of_truth=source.slug,
-                metadata={"ofac_uid": uid},
-            )
-            metrics["entities"] += 1
-            ensure_aliases(session, entity.id, aliases, artifact.artifact.id)
-
-            programs = _collect_programs(entry)
-            identifiers, wallets, websites = _collect_id_metadata(entry)
-            sanctions_record = upsert_sanctions_record(
-                session,
-                entity_id=entity.id,
-                source_id=source.id,
-                source_artifact_id=artifact.artifact.id,
-                list_type=list_type,
-                sanctions_uid=uid,
-                publication_date=publication_date,
-                program_codes=programs,
-                fields_json={
-                    "uid": uid,
-                    "label": label,
-                    "sdnType": _text(entry, "ofac:sdnType"),
-                    "programs": programs,
-                    "identifiers": identifiers,
-                },
-            )
-            metrics["records"] += 1
-            sanctions_rel = ensure_relationship(
-                session,
-                from_node_type="entity",
-                from_node_id=entity.id,
-                to_node_type="sanctions_record",
-                to_node_id=sanctions_record.id,
-                edge_type="sanctioned_as",
-            )
-            ensure_relationship_evidence(
-                session,
-                relationship_id=sanctions_rel.id,
-                source_artifact_id=artifact.artifact.id,
-                evidence_type="xml_entry",
-                evidence_uri=artifact.artifact.remote_url,
-                snippet=label,
-            )
-
-            for chain, address in wallets:
-                wallet = ensure_wallet(
+                entity = get_or_create_entity(
                     session,
-                    chain=chain,
-                    address=address,
-                    label=label,
-                    metadata={"source": "ofac"},
+                    name=label,
+                    entity_type=(_text(entry, "ofac:sdnType") or "sanctions_subject").lower(),
+                    status="sanctioned",
+                    source_of_truth=source.slug,
+                    metadata={"ofac_uid": uid},
                 )
-                metrics["wallets"] += 1
-                wallet_rel = ensure_relationship(
+                metrics["entities"] += 1
+                ensure_aliases(session, entity.id, aliases, artifact.artifact.id)
+
+                programs = _collect_programs(entry)
+                identifiers, wallets, websites = _collect_id_metadata(entry)
+                sanctions_record = upsert_sanctions_record(
+                    session,
+                    entity_id=entity.id,
+                    source_id=source.id,
+                    source_artifact_id=artifact.artifact.id,
+                    list_type=list_type,
+                    sanctions_uid=uid,
+                    publication_date=publication_date,
+                    program_codes=programs,
+                    fields_json={
+                        "uid": uid,
+                        "label": label,
+                        "sdnType": _text(entry, "ofac:sdnType"),
+                        "programs": programs,
+                        "identifiers": identifiers,
+                    },
+                )
+                metrics["records"] += 1
+                sanctions_rel = ensure_relationship(
                     session,
                     from_node_type="entity",
                     from_node_id=entity.id,
-                    to_node_type="wallet",
-                    to_node_id=wallet.id,
-                    edge_type="linked_wallet",
+                    to_node_type="sanctions_record",
+                    to_node_id=sanctions_record.id,
+                    edge_type="sanctioned_as",
                 )
                 ensure_relationship_evidence(
                     session,
-                    relationship_id=wallet_rel.id,
+                    relationship_id=sanctions_rel.id,
                     source_artifact_id=artifact.artifact.id,
-                    evidence_type="identifier",
-                    field_path="idList.id",
-                    snippet=address,
+                    evidence_type="xml_entry",
+                    evidence_uri=artifact.artifact.remote_url,
+                    snippet=label,
                 )
 
-            for website in websites:
-                domain = ensure_domain(session, website)
-                if domain is None:
-                    continue
-                domain_rel = ensure_relationship(
-                    session,
-                    from_node_type="entity",
-                    from_node_id=entity.id,
-                    to_node_type="domain",
-                    to_node_id=domain.id,
-                    edge_type="linked_domain",
-                )
-                ensure_relationship_evidence(
-                    session,
-                    relationship_id=domain_rel.id,
-                    source_artifact_id=artifact.artifact.id,
-                    evidence_type="identifier",
-                    field_path="idList.id",
-                    snippet=website,
-                )
+                for chain, address in wallets:
+                    wallet = ensure_wallet(
+                        session,
+                        chain=chain,
+                        address=address,
+                        label=label,
+                        metadata={"source": "ofac"},
+                    )
+                    metrics["wallets"] += 1
+                    wallet_rel = ensure_relationship(
+                        session,
+                        from_node_type="entity",
+                        from_node_id=entity.id,
+                        to_node_type="wallet",
+                        to_node_id=wallet.id,
+                        edge_type="linked_wallet",
+                    )
+                    ensure_relationship_evidence(
+                        session,
+                        relationship_id=wallet_rel.id,
+                        source_artifact_id=artifact.artifact.id,
+                        evidence_type="identifier",
+                        field_path="idList.id",
+                        snippet=address,
+                    )
 
-            record_snapshot(
-                session,
-                scope=f"ofac:{list_type}:{uid}",
-                payload={
-                    "uid": uid,
-                    "label": label,
-                    "programs": programs,
-                    "identifiers": identifiers,
-                },
-                entity_id=entity.id,
-                source_id=source.id,
-                artifact_id=artifact.artifact.id,
-                summary_label=f"OFAC {list_type} entry {label}",
-            )
-            
-            # Clear processed element to free memory
-            elem.clear()
+                for website in websites:
+                    domain = ensure_domain(session, website)
+                    if domain is None:
+                        continue
+                    domain_rel = ensure_relationship(
+                        session,
+                        from_node_type="entity",
+                        from_node_id=entity.id,
+                        to_node_type="domain",
+                        to_node_id=domain.id,
+                        edge_type="linked_domain",
+                    )
+                    ensure_relationship_evidence(
+                        session,
+                        relationship_id=domain_rel.id,
+                        source_artifact_id=artifact.artifact.id,
+                        evidence_type="identifier",
+                        field_path="idList.id",
+                        snippet=website,
+                    )
+
+                record_snapshot(
+                    session,
+                    scope=f"ofac:{list_type}:{uid}",
+                    payload={
+                        "uid": uid,
+                        "label": label,
+                        "programs": programs,
+                        "identifiers": identifiers,
+                    },
+                    entity_id=entity.id,
+                    source_id=source.id,
+                    artifact_id=artifact.artifact.id,
+                    summary_label=f"OFAC {list_type} entry {label}",
+                )
+                
+                # Clear processed element to free memory
+                elem.clear()
 
         finish_ingestion_run(session, run, status="completed", metrics=metrics, artifact_id=artifact.artifact.id)
     return metrics

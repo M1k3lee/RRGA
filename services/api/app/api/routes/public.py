@@ -31,6 +31,10 @@ from app.services.catalog import (
 
 router = APIRouter()
 
+import logging
+logger = logging.getLogger(__name__)
+logger.info("Public routes initialized")
+
 
 @router.get("/")
 def root():
@@ -38,11 +42,14 @@ def root():
 
 
 @router.get("/health")
-def health(session: Session = Depends(get_db)) -> dict:
+def health() -> dict:
+    return {"status": "ok", "timestamp": datetime.utcnow()}
+
+
+@router.get("/health/stats")
+def health_stats(session: Session = Depends(get_db)) -> dict:
     from app.db.models import SourceArtifact, IngestionRun
     return {
-        "status": "ok",
-        "timestamp": datetime.utcnow(),
         "entity_count": session.scalar(select(func.count(Entity.id))) or 0,
         "artifact_count": session.scalar(select(func.count(SourceArtifact.id))) or 0,
         "last_run": session.scalar(select(IngestionRun.status).order_by(IngestionRun.started_at.desc()).limit(1)),
