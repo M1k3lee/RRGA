@@ -183,7 +183,7 @@ def jurisdiction_detail(code: str, session: Session = Depends(get_db)):
 
 
 @router.get("/sources")
-def sources(session: Session = Depends(get_db)) -> list[dict]:
+def sources(session: Session = Depends(get_db)):
     from app.db.models import SourceArtifact, IngestionRun
     all_sources = session.scalars(select(Source).order_by(Source.slug)).all()
     statuses = []
