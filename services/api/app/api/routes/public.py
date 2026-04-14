@@ -207,8 +207,14 @@ async def sync_sources():
         db = SessionLocal()
         try:
             await ingest_esma(db, get_settings())
+            db.commit()
             await ingest_ofac(db, get_settings(), "ofac_sdn")
+            db.commit()
             await ingest_coingecko_catalog(db, get_settings(), limit=50)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 

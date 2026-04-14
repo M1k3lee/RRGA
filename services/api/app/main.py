@@ -63,23 +63,29 @@ async def lifespan(app: FastAPI):
                     logger.info("Background sync: starting ESMA ingestion...")
                     try:
                         await ingest_esma(db, settings)
+                        db.commit()
                         logger.info("Background sync: ESMA ingestion completed")
                     except Exception as e:
                         logger.error(f"Background sync: ESMA ingestion failed: {e}")
+                        db.rollback()
 
                     logger.info("Background sync: starting OFAC SDN ingestion...")
                     try:
                         await ingest_ofac(db, settings, "ofac_sdn")
+                        db.commit()
                         logger.info("Background sync: OFAC SDN ingestion completed")
                     except Exception as e:
                         logger.error(f"Background sync: OFAC SDN ingestion failed: {e}")
+                        db.rollback()
 
                     logger.info("Background sync: starting CoinGecko ingestion...")
                     try:
                         await ingest_coingecko_catalog(db, settings, limit=50)
+                        db.commit()
                         logger.info("Background sync: CoinGecko ingestion completed")
                     except Exception as e:
                         logger.error(f"Background sync: CoinGecko ingestion failed: {e}")
+                        db.rollback()
                 else:
                     logger.info(f"Background sync: skipping, already have {count} artifacts")
             except Exception as e:
