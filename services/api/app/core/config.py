@@ -81,6 +81,11 @@ class Settings(BaseSettings):
             return "sqlite:///./rrga.db"
         if s.startswith("postgres://"):
             s = "postgresql://" + s[len("postgres://") :]
+        # Supabase from IPv4-only hosts (e.g. Render) needs TLS; pooler URL is still safest.
+        if "supabase.co" in s and not s.startswith("sqlite"):
+            low = s.lower()
+            if "sslmode=" not in low and "ssl=" not in low:
+                s += ("&" if "?" in s else "?") + "sslmode=require"
         return s
 
     @field_validator("database_url", mode="after")
