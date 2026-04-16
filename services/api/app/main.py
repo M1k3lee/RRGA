@@ -74,6 +74,9 @@ async def lifespan(app: FastAPI):
                     if count == 0:
                         logger.info("Background sync loop: No data found, update required.")
                         needs_update = True
+                    elif not last_run or not getattr(last_run, "completed_at", None):
+                        logger.info("Background sync loop: Missing complete run history, update required.")
+                        needs_update = True
                     elif last_run and last_run.completed_at:
                         # Make completed_at timezone aware if it isn't
                         completed_at = last_run.completed_at
