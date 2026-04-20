@@ -21,8 +21,12 @@ export function BadgeGenerator({
   const [copied, setCopied] = useState(false);
   
   const publicUrl = typeof window !== "undefined" ? window.location.origin : "https://voto-web.onrender.com";
-  const embedCode = `<div id="voto-badge" data-id="${id}" data-type="${type}"></div>
-<script src="${publicUrl}/embed/badge.js" async></script>`;
+  // Determine landing page based on type
+  const landingPath = type === "entity" ? `/entity/${id}` : `/lookup?q=${id}`;
+  
+  const embedCode = `<a href="${publicUrl}${landingPath}" target="_blank" title="Verify this project on VOTO">
+  <img src="${publicUrl}/api/badge/${type}/${id}" width="240" height="48" alt="VOTO Verified Trust Badge" />
+</a>`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(embedCode);

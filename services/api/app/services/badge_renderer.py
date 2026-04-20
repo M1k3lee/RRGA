@@ -3,43 +3,44 @@ from __future__ import annotations
 import html
 
 def render_trust_badge_svg(name: str, status: str, tone: str) -> str:
-    """Renders a stunning, glassmorphism-style SVG badge."""
+    """Renders a sleek, compact capsule-style SVG badge."""
     
     colors = {
-        "clear": {"bg": "#06b6d4", "text": "#e0f7fa", "icon": "✓"},
-        "warning": {"bg": "#f59e0b", "text": "#fef3c7", "icon": "⚠"},
-        "critical": {"bg": "#ef4444", "text": "#fee2e2", "icon": "!"},
-        "neutral": {"bg": "#64748b", "text": "#f1f5f9", "icon": "i"},
-    }.get(tone, {"bg": "#64748b", "text": "#f1f5f9", "icon": "i"})
+        "clear": {"bg": "#10b981", "accent": "#059669", "icon": "S"}, # Shield
+        "warning": {"bg": "#f59e0b", "accent": "#d97706", "icon": "!"},
+        "critical": {"bg": "#ef4444", "accent": "#dc2626", "icon": "X"},
+        "neutral": {"bg": "#64748b", "accent": "#475569", "icon": "?"},
+    }.get(tone, {"bg": "#64748b", "accent": "#475569", "icon": "?"})
 
     safe_name = html.escape(name)
-    safe_status = html.escape(status)
     
-    return f"""<svg width="280" height="90" viewBox="0 0 280 90" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="280" height="90" rx="16" fill="#050B10" />
-        <rect width="280" height="90" rx="16" fill="{colors['bg']}" fill-opacity="0.1" stroke="{colors['bg']}" stroke-opacity="0.3" />
+    return f"""<svg width="240" height="48" viewBox="0 0 240 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Capsule Shape -->
+        <rect x="0.5" y="0.5" width="239" height="47" rx="23.5" fill="#050B10" stroke="{colors['bg']}" stroke-opacity="0.4"/>
+        <rect width="240" height="48" rx="24" fill="{colors['bg']}" fill-opacity="0.15"/>
         
-        <!-- Header -->
-        <text x="52" y="32" fill="{colors['bg']}" font-family="sans-serif" font-size="9" font-weight="600" style="text-transform: uppercase; letter-spacing: 0.15em;">VOTO VERIFIED</text>
-        <text x="52" y="52" fill="white" font-family="sans-serif" font-size="14" font-weight="700">{safe_name}</text>
+        <!-- Icon Circle -->
+        <circle cx="24" cy="24" r="18" fill="{colors['bg']}" fill-opacity="0.2"/>
+        <path d="M24 16 L24 32 M18 24 L30 24" stroke="{colors['bg']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
         
-        <!-- Status -->
-        <text x="264" y="52" text-anchor="end" fill="{colors['bg']}" font-family="sans-serif" font-size="12" font-weight="600">{safe_status}</text>
+        <!-- Symbol -->
+        <text x="24" y="29" text-anchor="middle" fill="{colors['bg']}" font-family="sans-serif" font-size="14" font-weight="bold">{colors['icon']}</text>
         
-        <!-- Icon Container -->
-        <rect x="16" y="22" width="24" height="24" rx="6" fill="{colors['bg']}" fill-opacity="0.2" />
-        <text x="28" y="40" text-anchor="middle" fill="{colors['bg']}" font-family="sans-serif" font-size="16" font-weight="bold">{colors['icon']}</text>
+        <!-- Labels -->
+        <text x="52" y="18" fill="white" fill-opacity="0.4" font-family="sans-serif" font-size="8" font-weight="600" style="text-transform: uppercase; letter-spacing: 0.2em;">VOTO VERIFIED</text>
+        <text x="52" y="34" fill="white" font-family="sans-serif" font-size="13" font-weight="700">{safe_name}</text>
         
-        <!-- Footer -->
-        <line x1="16" y1="70" x2="264" y2="70" stroke="white" stroke-opacity="0.05" />
-        <text x="264" y="80" text-anchor="end" fill="white" fill-opacity="0.2" font-family="sans-serif" font-size="7" style="text-transform: uppercase; letter-spacing: 0.3em;">Oversight &amp; Trust Oracle</text>
+        <!-- Pulse Indicator -->
+        <circle cx="220" cy="24" r="3" fill="{colors['bg']}">
+            <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite" />
+        </circle>
         
-        <!-- Pulse reflection -->
+        <!-- Subtle Gloss -->
         <defs>
-            <linearGradient id="paint0_linear" x1="0" y1="0" x2="280" y2="90" gradientUnits="userSpaceOnUse">
+            <linearGradient id="gloss" x1="0" y1="0" x2="240" y2="48" gradientUnits="userSpaceOnUse">
                 <stop stop-color="white" stop-opacity="0.05"/>
                 <stop offset="1" stop-color="white" stop-opacity="0"/>
             </linearGradient>
         </defs>
-        <rect width="280" height="90" rx="16" fill="url(#paint0_linear)"/>
+        <rect width="240" height="48" rx="24" fill="url(#gloss)"/>
     </svg>"""
