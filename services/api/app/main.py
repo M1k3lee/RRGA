@@ -60,33 +60,39 @@ async def lifespan(app: FastAPI):
             while True:
                 db = SessionLocal()
                 try:
-                    count = db.scalar(select(func.count(SourceArtifact.id))) or 0
-                    
-                    # Check the last successful ingestion time
-                    last_run = db.scalars(
-                        select(IngestionRun)
-                        .where(IngestionRun.status == "success")
-                        .order_by(desc(IngestionRun.completed_at))
-                        .limit(1)
-                    ).first()
-                    
                     needs_update = False
-                    if count == 0:
-                        logger.info("Background sync loop: No data found, update required.")
-                        needs_update = True
-                    elif not last_run or not getattr(last_run, "completed_at", None):
-                        logger.info("Background sync loop: Missing complete run history, update required.")
-                        needs_update = True
-                    elif last_run and last_run.completed_at:
-                        # Make completed_at timezone aware if it isn't
-                        completed_at = last_run.completed_at
-                        if completed_at.tzinfo is None:
-                            completed_at = completed_at.replace(tzinfo=timezone.utc)
-                            
-                        age = datetime.now(timezone.utc) - completed_at
-                        if age > timedelta(hours=24):
-                            logger.info(f"Background sync loop: Data is {age.total_seconds()/3600:.1f} hours old, update required.")
+                    
+                    # Check if any enabled source has 0 artifacts
+                    from app.db.models import Source
+                    enabled_sources = db.scalars(select(Source).where(Source.enabled == True)).all()
+                    for src in enabled_sources:
+                        src_artifact_count = db.scalar(select(func.count(SourceArtifact.id)).where(SourceArtifact.source_id == src.id)) or 0
+                        if src_artifact_count == 0:
+                            logger.info(f"Background sync loop: Source {src.slug} has no data, update required.")
                             needs_update = True
+                            break
+                    
+                    if not needs_update:
+                        # Check the last successful ingestion time globally
+                        last_run = db.scalars(
+                            select(IngestionRun)
+                            .where(IngestionRun.status == "completed") # Note: was "success" before, but we use "completed" in ingestions
+                            .order_by(desc(IngestionRun.finished_at))
+                            .limit(1)
+                        ).first()
+                        
+                        if not last_run or not getattr(last_run, "finished_at", None):
+                            logger.info("Background sync loop: Missing complete run history, update required.")
+                            needs_update = True
+                        else:
+                            finished_at = last_run.finished_at
+                            if finished_at.tzinfo is None:
+                                finished_at = finished_at.replace(tzinfo=timezone.utc)
+                                
+                            age = datetime.now(timezone.utc) - finished_at
+                            if age > timedelta(hours=24):
+                                logger.info(f"Background sync loop: Data is {age.total_seconds()/3600:.1f} hours old, update required.")
+                                needs_update = True
 
                     if needs_update:
                         try:

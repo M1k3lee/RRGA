@@ -571,7 +571,7 @@ def record_snapshot(
 def start_ingestion_run(session: Session, source: Source, trigger: str = "manual") -> IngestionRun:
     run = IngestionRun(source_id=source.id, trigger=trigger, status="running")
     session.add(run)
-    session.flush()
+    session.commit()
     return run
 
 
