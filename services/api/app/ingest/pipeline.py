@@ -87,8 +87,16 @@ async def fetch_and_store_artifact(
     import asyncio
     # Yield to event loop before network request
     await asyncio.sleep(0)
-    response = await client.get(url, follow_redirects=True, headers=headers)
-    response.raise_for_status()
+    full_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        **(headers or {})
+    }
+    try:
+        response = await client.get(url, headers=full_headers, follow_redirects=True)
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"Failed to fetch artifact from {url}: {e}")
+        raise
     # Yield to event loop after network request
     await asyncio.sleep(0)
     raw_bytes = response.content

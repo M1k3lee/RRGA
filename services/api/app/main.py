@@ -102,6 +102,12 @@ async def lifespan(app: FastAPI):
                         except Exception as e:
                             logger.error(f"CoinGecko ingestion failed: {e}")
                             db.rollback()
+                            from app.db.models import IngestionRun, Source
+                            from app.ingest.pipeline import finish_ingestion_run
+                            src = db.scalar(select(Source).where(Source.slug == "coingecko"))
+                            run = db.scalar(select(IngestionRun).where(IngestionRun.source_id == src.id, IngestionRun.status == "running").order_by(desc(IngestionRun.started_at)).limit(1))
+                            if run:
+                                finish_ingestion_run(db, run, status="failed")
 
                         try:
                             logger.info("Background sync loop: starting OFAC SDN ingestion...")
@@ -110,6 +116,12 @@ async def lifespan(app: FastAPI):
                         except Exception as e:
                             logger.error(f"OFAC SDN ingestion failed: {e}")
                             db.rollback()
+                            from app.db.models import IngestionRun, Source
+                            from app.ingest.pipeline import finish_ingestion_run
+                            src = db.scalar(select(Source).where(Source.slug == "ofac_sdn"))
+                            run = db.scalar(select(IngestionRun).where(IngestionRun.source_id == src.id, IngestionRun.status == "running").order_by(desc(IngestionRun.started_at)).limit(1))
+                            if run:
+                                finish_ingestion_run(db, run, status="failed")
 
                         try:
                             logger.info("Background sync loop: starting OFAC Consolidated ingestion...")
@@ -118,6 +130,12 @@ async def lifespan(app: FastAPI):
                         except Exception as e:
                             logger.error(f"OFAC Consolidated ingestion failed: {e}")
                             db.rollback()
+                            from app.db.models import IngestionRun, Source
+                            from app.ingest.pipeline import finish_ingestion_run
+                            src = db.scalar(select(Source).where(Source.slug == "ofac_consolidated"))
+                            run = db.scalar(select(IngestionRun).where(IngestionRun.source_id == src.id, IngestionRun.status == "running").order_by(desc(IngestionRun.started_at)).limit(1))
+                            if run:
+                                finish_ingestion_run(db, run, status="failed")
 
                         try:
                             logger.info("Background sync loop: starting ESMA ingestion...")
@@ -126,6 +144,12 @@ async def lifespan(app: FastAPI):
                         except Exception as e:
                             logger.error(f"ESMA ingestion failed: {e}")
                             db.rollback()
+                            from app.db.models import IngestionRun, Source
+                            from app.ingest.pipeline import finish_ingestion_run
+                            src = db.scalar(select(Source).where(Source.slug == "esma_mica"))
+                            run = db.scalar(select(IngestionRun).where(IngestionRun.source_id == src.id, IngestionRun.status == "running").order_by(desc(IngestionRun.started_at)).limit(1))
+                            if run:
+                                finish_ingestion_run(db, run, status="failed")
                             
                         logger.info("Background sync loop: All data ingestions completed.")
                     else:
