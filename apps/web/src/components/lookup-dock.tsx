@@ -126,7 +126,7 @@ export function LookupDock() {
     return (
       <ContextDock eyebrow="Lookup context" title="Loading lookup intelligence" summary="Resolving the current query against live source-backed data.">
         <ContextDockSection title="Current query">
-          <p className="text-sm leading-7 text-white/65">{query}</p>
+          <p className="break-all text-sm leading-7 text-white/65">{query}</p>
         </ContextDockSection>
       </ContextDock>
     );
@@ -141,7 +141,7 @@ export function LookupDock() {
         actions={[{ label: "Inspect sources", href: "/sources" }]}
       >
         <ContextDockSection title="Current query">
-          <p className="text-sm leading-7 text-white/65">{query}</p>
+          <p className="break-all text-sm leading-7 text-white/65">{query}</p>
         </ContextDockSection>
       </ContextDock>
     );

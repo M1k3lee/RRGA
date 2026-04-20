@@ -315,6 +315,6 @@ def materialize_contracts_from_catalog_address(
                 )
             )
 
-    if materialized:
-        session.commit()
+    session.add_all(materialized)
+    session.commit()
     return materialized
