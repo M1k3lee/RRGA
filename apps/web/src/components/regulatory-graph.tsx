@@ -170,6 +170,8 @@ export function RegulatoryGraph({
         const selected = selectedIds.includes(node.id);
         const hovered = hoveredId === node.id;
         const radius = node.radius * (selected || hovered ? 1.22 : 1);
+        
+        // Node Glow / Shadow
         ctx.beginPath();
         ctx.fillStyle = `${node.color}${selected ? "ee" : hovered ? "dd" : "aa"}`;
         ctx.shadowColor = node.color;
@@ -178,16 +180,42 @@ export function RegulatoryGraph({
         ctx.fill();
         ctx.shadowBlur = 0;
 
+        // Node Border
         ctx.beginPath();
         ctx.strokeStyle = selected ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.15)";
         ctx.lineWidth = selected ? 2.2 / scale : 1 / scale;
         ctx.arc(node.x ?? 0, node.y ?? 0, radius + 4, 0, Math.PI * 2);
         ctx.stroke();
 
+        // Node Symbol (Simplified icon representation)
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.font = `${radius * 0.8}px serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const symbol = {
+          regulator: "⚖",
+          sanctions_entry: "☠",
+          warning_notice: "⚠",
+          token_contract: "◈",
+          wallet: "⬡",
+          brand: "◌",
+          legal_entity: "BOX",
+        }[node.node_type] || "•";
+        if (symbol !== "BOX") {
+          ctx.fillText(symbol, node.x ?? 0, (node.y ?? 0) + 1);
+        } else {
+          ctx.strokeRect((node.x ?? 0) - 4, (node.y ?? 0) - 4, 8, 8);
+        }
+
         if (selected || hovered) {
           ctx.fillStyle = "rgba(240, 249, 255, 0.95)";
-          ctx.font = `${12 / scale}px ui-sans-serif, system-ui`;
-          ctx.fillText(node.label, (node.x ?? 0) + radius + 8, (node.y ?? 0) - 8);
+          ctx.font = `600 ${12 / scale}px ui-sans-serif, system-ui`;
+          ctx.textAlign = "left";
+          ctx.fillText(node.label, (node.x ?? 0) + radius + 10, (node.y ?? 0));
+          
+          ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+          ctx.font = `${10 / scale}px ui-sans-serif, system-ui`;
+          ctx.fillText(node.node_type.replaceAll("_", " "), (node.x ?? 0) + radius + 10, (node.y ?? 0) + 14);
         }
       }
 

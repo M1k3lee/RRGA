@@ -7,6 +7,7 @@ import { ContextDock, ContextDockSection, DockMetric } from "@/components/contex
 import { getEntity, getEntityGraph, getNodeGraph, searchRegistry } from "@/lib/api";
 import { formatCount, formatTimestamp } from "@/lib/format";
 import { getInvestigationSignals } from "@/lib/intelligence";
+import { BadgeGenerator } from "./badge-generator";
 import type { EntityProfile, GraphResponse, SearchResult } from "@/types/api";
 
 const ENTITY_TYPES = new Set(["legal_entity", "brand", "regulator", "sanctions_subject", "individual", "entity"]);
@@ -180,6 +181,21 @@ export function LookupDock() {
           <DockMetric label="Decision signal" value={signal.title} tone={signal.tone === "critical" ? "warning" : signal.tone === "clear" ? "positive" : "neutral"} />
           <DockMetric label="Source coverage" value={sourceCoverage} />
           <DockMetric label="Latest update" value={formatTimestamp(latestUpdate)} />
+        </div>
+      </ContextDockSection>
+
+      <ContextDockSection title="Intelligence Sharing">
+        <div className="space-y-4">
+          <p className="text-xs leading-relaxed text-white/55">
+            Embed this project's real-time regulatory posture on your own surface using a live trust badge.
+          </p>
+          <BadgeGenerator 
+            name={entity?.canonical_name ?? selected.label}
+            id={selected.id}
+            type={selected.node_type}
+            currentStatus={signal.title}
+            currentTone={signal.tone === "critical" ? "critical" : signal.tone === "clear" ? "clear" : "neutral"}
+          />
         </div>
       </ContextDockSection>
 
