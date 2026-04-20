@@ -287,7 +287,7 @@ def materialize_contracts_from_catalog_address(
     artifact_path = Path(artifact.storage_uri)
     if artifact_path.exists():
         coins: list[dict[str, Any]] = json.loads(artifact_path.read_text(encoding="utf-8"))
-    elif artifact.content:
+    elif artifact.content is not None:
         coins: list[dict[str, Any]] = json.loads(artifact.content)
     else:
         return []

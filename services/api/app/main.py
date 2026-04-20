@@ -30,6 +30,20 @@ async def lifespan(app: FastAPI):
     try:
         ensure_bootstrap_data(session, settings)
         logger.info("Database bootstrapped successfully")
+        
+        # Emergency migration check for 'content' column
+        from sqlalchemy import text
+        try:
+            session.execute(text("SELECT content FROM source_artifacts LIMIT 1"))
+        except Exception:
+            logger.info("Emergency migration: Adding 'content' column to source_artifacts")
+            session.rollback()
+            try:
+                session.execute(text("ALTER TABLE source_artifacts ADD COLUMN content TEXT"))
+                session.commit()
+            except Exception as migrate_err:
+                logger.error(f"Migration failed: {migrate_err}")
+                session.rollback()
     except Exception as e:
         logger.error(f"Failed to bootstrap database: {e}")
     finally:
