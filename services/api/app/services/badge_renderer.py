@@ -20,11 +20,14 @@ def render_trust_badge_svg(name: str, status: str, tone: str) -> str:
         <rect width="240" height="48" rx="24" fill="{colors['bg']}" fill-opacity="0.15"/>
         
         <!-- Icon Circle -->
-        <circle cx="24" cy="24" r="18" fill="{colors['bg']}" fill-opacity="0.2"/>
-        <path d="M24 16 L24 32 M18 24 L30 24" stroke="{colors['bg']}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
+        <circle cx="24" cy="24" r="16" fill="{colors['bg']}" fill-opacity="0.15"/>
         
-        <!-- Symbol -->
-        <text x="24" y="29" text-anchor="middle" fill="{colors['bg']}" font-family="sans-serif" font-size="14" font-weight="bold">{colors['icon']}</text>
+        <!-- Shield Icon Path -->
+        <path d="M24 14C24 14 21 14.5 19 16C17 17.5 16.5 19 16.5 22C16.5 26.5 19.5 29.5 24 32C28.5 29.5 31.5 26.5 31.5 22C31.5 19 31 17.5 29 16C27 14.5 24 14 24 14Z" 
+              fill="{colors['bg']}" fill-opacity="0.8" />
+        
+        <!-- Checkmask symbol (inner) -->
+        <path d="M20.5 23.5L23 26L28 21" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         
         <!-- Labels -->
         <text x="52" y="18" fill="white" fill-opacity="0.4" font-family="sans-serif" font-size="8" font-weight="600" style="text-transform: uppercase; letter-spacing: 0.2em;">VOTO VERIFIED</text>
