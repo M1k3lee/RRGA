@@ -154,15 +154,60 @@ export function RegulatoryGraph({
         ctx.stroke();
       }
 
+      // Path Highlighting Logic
+      const highlightedEdges = new Set<string>();
+      if (selectedIds.length > 0 && nodesRef.current.length > 0) {
+        const rootId = nodesRef.current[0].id;
+        const adj = new Map<string, string[]>();
+        for (const link of linksRef.current) {
+          const s = (link.source as SimNode).id;
+          const t = (link.target as SimNode).id;
+          if (!adj.has(s)) adj.set(s, []);
+          if (!adj.has(t)) adj.set(t, []);
+          adj.get(s)!.push(t);
+          adj.get(t)!.push(s);
+        }
+
+        for (const targetId of selectedIds) {
+          if (targetId === rootId) continue;
+          // Simple BFS to find shortest path from root to target
+          const queue: [string, string[]][] = [[rootId, []]];
+          const visited = new Set([rootId]);
+          while (queue.length > 0) {
+            const [curr, path] = queue.shift()!;
+            if (curr === targetId) {
+              for (const edgeKey of path) highlightedEdges.add(edgeKey);
+              break;
+            }
+            for (const neighbor of adj.get(curr) || []) {
+              if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                const edgeKey = [curr, neighbor].sort().join("|");
+                queue.push([neighbor, [...path, edgeKey]]);
+              }
+            }
+          }
+        }
+      }
+
       for (const link of linksRef.current) {
         const source = link.source as SimNode;
         const target = link.target as SimNode;
+        const edgeKey = [source.id, target.id].sort().join("|");
+        const onPath = highlightedEdges.has(edgeKey);
+        const emphasized = selectedIds.includes(source.id) || selectedIds.includes(target.id);
+        
         ctx.beginPath();
         ctx.moveTo(source.x ?? 0, source.y ?? 0);
         ctx.lineTo(target.x ?? 0, target.y ?? 0);
-        const emphasized = selectedIds.includes(source.id) || selectedIds.includes(target.id);
-        ctx.strokeStyle = emphasized ? "rgba(154,230,255,0.52)" : "rgba(118,143,162,0.22)";
-        ctx.lineWidth = emphasized ? 2 / scale : 1 / scale;
+        
+        if (onPath) {
+          ctx.strokeStyle = "rgba(154,230,255,0.95)";
+          ctx.lineWidth = 3 / scale;
+        } else {
+          ctx.strokeStyle = emphasized ? "rgba(154,230,255,0.42)" : "rgba(118,143,162,0.18)";
+          ctx.lineWidth = emphasized ? 2 / scale : 1 / scale;
+        }
         ctx.stroke();
       }
 

@@ -194,11 +194,27 @@ export function ExplorerWorkspace() {
           </div>
 
           <div className="rounded-[26px] border border-white/10 bg-black/20 p-4">
-            <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Operational Notes</p>
-            <div className="mt-4 space-y-3 text-sm leading-7 text-white/60">
-              <p>Use this surface when you need connected investigation context after a legitimacy check.</p>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Graph Legend</p>
+            <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2">
+               <div className="flex items-center gap-2">
+                 <div className="h-2 w-2 rounded-full bg-[#4FD1C5]" />
+                 <span className="text-[10px] uppercase tracking-wider text-white/60">Regulator</span>
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="h-2 w-2 rounded-full bg-[#FF6B6B]" />
+                 <span className="text-[10px] uppercase tracking-wider text-white/60">Sanctions</span>
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="h-2 w-2 rounded-full bg-[#C4B5FD]" />
+                 <span className="text-[10px] uppercase tracking-wider text-white/60">Brand</span>
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="h-2 w-2 rounded-full bg-[#6EE7B7]" />
+                 <span className="text-[10px] uppercase tracking-wider text-white/60">Contract</span>
+               </div>
+            </div>
+            <div className="mt-4 space-y-3 text-sm leading-7 text-white/60 border-t border-white/5 pt-4">
               <p>Official regulator and sanctions sources win when data conflicts. Enrichment layers never overwrite them.</p>
-              <p>Empty graph states are deliberate: the interface only renders evidence-backed objects.</p>
             </div>
           </div>
         </div>
