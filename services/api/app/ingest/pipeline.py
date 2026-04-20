@@ -102,7 +102,7 @@ async def fetch_and_store_artifact(
         artifact_type=artifact_type,
         remote_url=url,
         storage_uri=storage_uri,
-        content=content_str if len(raw_bytes) < 10 * 1024 * 1024 else None,
+        content=content_str if len(raw_bytes) < 25 * 1024 * 1024 else None,
         checksum_sha256=checksum,
         content_type=response.headers.get("content-type"),
         size_bytes=len(raw_bytes),
@@ -111,7 +111,7 @@ async def fetch_and_store_artifact(
         metadata_json=dict(response.headers),
     )
     session.add(artifact)
-    session.flush()
+    session.commit()
     return ArtifactEnvelope(artifact=artifact, raw_bytes=raw_bytes, text=content_str)
 
 
