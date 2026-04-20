@@ -126,7 +126,7 @@ async def hydrate_coin_detail(session: Session, settings: Settings, coin_id: str
     if source is None:
         return None
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=300) as client:
         headers = {"x-cg-demo-api-key": settings.coingecko_api_key} if settings.coingecko_api_key else {}
         response = await client.get(
             (

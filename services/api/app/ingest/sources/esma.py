@@ -86,7 +86,7 @@ async def ingest_esma(session: Session, settings: Settings) -> dict[str, int]:
     run = start_ingestion_run(session, source, trigger="manual")
     metrics = {"artifacts": 0, "records": 0, "entities": 0}
 
-    async with httpx.AsyncClient(timeout=90) as client:
+    async with httpx.AsyncClient(timeout=300) as client:
         page = await client.get(settings.esma_mica_page_url, follow_redirects=True)
         page.raise_for_status()
         source_publication_date = _publication_from_page(page.text)

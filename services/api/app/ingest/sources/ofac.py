@@ -96,7 +96,7 @@ async def ingest_ofac(session: Session, settings: Settings, slug: str) -> dict[s
     url = settings.ofac_sdn_url if slug == "ofac_sdn" else settings.ofac_consolidated_url
     list_type = "SDN" if slug == "ofac_sdn" else "NON_SDN"
 
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=300) as client:
         artifact = await fetch_and_store_artifact(
             session=session,
             client=client,
