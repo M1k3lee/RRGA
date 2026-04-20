@@ -281,16 +281,17 @@ def materialize_contracts_from_catalog_address(
         .where(SourceArtifact.source_id == source.id, SourceArtifact.artifact_key == "catalog")
         .order_by(SourceArtifact.fetched_at.desc())
     )
-    if artifact is None or not artifact.storage_uri:
-        return []
-
-    artifact_path = Path(artifact.storage_uri)
-    if not artifact_path.exists():
-        return []
-
     normalized_address = address.lower()
     target_chain = chain.lower() if chain else None
-    coins: list[dict[str, Any]] = json.loads(artifact_path.read_text(encoding="utf-8"))
+    
+    artifact_path = Path(artifact.storage_uri)
+    if artifact_path.exists():
+        coins: list[dict[str, Any]] = json.loads(artifact_path.read_text(encoding="utf-8"))
+    elif artifact.content:
+        coins: list[dict[str, Any]] = json.loads(artifact.content)
+    else:
+        return []
+
     materialized: list[Contract] = []
 
     for coin in coins:

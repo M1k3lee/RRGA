@@ -95,12 +95,14 @@ async def fetch_and_store_artifact(
     checksum = sha256_hexdigest(raw_bytes)
     relative_path = f"{source.slug}/{artifact_key}/{checksum}.{artifact_type}"
     storage_uri = storage.write_bytes(relative_path, raw_bytes)
+    content_str = decode_payload(raw_bytes)
     artifact = SourceArtifact(
         source_id=source.id,
         artifact_key=artifact_key,
         artifact_type=artifact_type,
         remote_url=url,
         storage_uri=storage_uri,
+        content=content_str if len(raw_bytes) < 10 * 1024 * 1024 else None,
         checksum_sha256=checksum,
         content_type=response.headers.get("content-type"),
         size_bytes=len(raw_bytes),
@@ -110,7 +112,7 @@ async def fetch_and_store_artifact(
     )
     session.add(artifact)
     session.flush()
-    return ArtifactEnvelope(artifact=artifact, raw_bytes=raw_bytes, text=decode_payload(raw_bytes))
+    return ArtifactEnvelope(artifact=artifact, raw_bytes=raw_bytes, text=content_str)
 
 
 from collections.abc import Generator

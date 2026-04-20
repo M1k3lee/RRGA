@@ -13,7 +13,7 @@ import {
 } from "@/types/api";
 
 /** Stay under Vercel's default serverless limit so RSC pages don't 504 while waiting on fetch. */
-const REQUEST_TIMEOUT_MS = 8_000;
+const REQUEST_TIMEOUT_MS = 60_000;
 
 function getApiBase(): string | null {
   const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/$/, "");

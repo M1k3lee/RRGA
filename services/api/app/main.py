@@ -89,15 +89,16 @@ async def lifespan(app: FastAPI):
                             needs_update = True
 
                     if needs_update:
-                        logger.info("Background sync loop: starting routine data ingestions...")
                         try:
-                            await ingest_esma(db, settings)
+                            logger.info("Background sync loop: starting CoinGecko ingestion...")
+                            await ingest_coingecko_catalog(db, settings, limit=5000)
                             db.commit()
                         except Exception as e:
-                            logger.error(f"ESMA ingestion failed: {e}")
+                            logger.error(f"CoinGecko ingestion failed: {e}")
                             db.rollback()
 
                         try:
+                            logger.info("Background sync loop: starting OFAC SDN ingestion...")
                             await ingest_ofac(db, settings, "ofac_sdn")
                             db.commit()
                         except Exception as e:
@@ -105,13 +106,22 @@ async def lifespan(app: FastAPI):
                             db.rollback()
 
                         try:
-                            await ingest_coingecko_catalog(db, settings, limit=500)
+                            logger.info("Background sync loop: starting OFAC Consolidated ingestion...")
+                            await ingest_ofac(db, settings, "ofac_consolidated")
                             db.commit()
                         except Exception as e:
-                            logger.error(f"CoinGecko ingestion failed: {e}")
+                            logger.error(f"OFAC Consolidated ingestion failed: {e}")
+                            db.rollback()
+
+                        try:
+                            logger.info("Background sync loop: starting ESMA ingestion...")
+                            await ingest_esma(db, settings)
+                            db.commit()
+                        except Exception as e:
+                            logger.error(f"ESMA ingestion failed: {e}")
                             db.rollback()
                             
-                        logger.info("Background sync loop: Routine data ingestions completed.")
+                        logger.info("Background sync loop: All data ingestions completed.")
                     else:
                         logger.info("Background sync loop: Data is up to date, skipping.")
                         
@@ -144,6 +154,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health/ping")
+def ping():
+    return {"status": "pong", "timestamp": datetime.now(timezone.utc)}
 
 app.include_router(router)
 # Instrumentator().instrument(app).expose(app, endpoint="/metrics")

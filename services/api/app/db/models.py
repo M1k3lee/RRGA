@@ -46,6 +46,7 @@ class SourceArtifact(Base):
     artifact_type: Mapped[str] = mapped_column(String(64))
     remote_url: Mapped[str] = mapped_column(Text)
     storage_uri: Mapped[str] = mapped_column(Text)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
     checksum_sha256: Mapped[str] = mapped_column(String(64), index=True)
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     size_bytes: Mapped[int] = mapped_column(Integer)
