@@ -182,6 +182,32 @@ def jurisdiction_detail(code: str, session: Session = Depends(get_db)):
     return get_jurisdiction_profile(session, code)
 
 
+@router.get("/badge/{node_type}/{node_id}")
+def badge(node_type: str, node_id: str, session: Session = Depends(get_db)):
+    from app.services.catalog import serialize_node
+    from app.services.badge_renderer import render_trust_badge_svg
+    from fastapi.responses import Response
+    
+    try:
+        node = serialize_node(session, node_type, node_id)
+        if not node:
+            return Response(status_code=404)
+        
+        status_label = node.get("status") or "UNVERIFIED"
+        tone = "neutral"
+        if status_label in ("compliant", "listed", "active"):
+            tone = "clear"
+        elif status_label in ("warning", "alert"):
+            tone = "warning"
+        elif status_label in ("sanctioned", "critical"):
+            tone = "critical"
+            
+        svg = render_trust_badge_svg(node["label"], status_label.upper(), tone)
+        return Response(content=svg, media_type="image/svg+xml")
+    except Exception:
+        return Response(status_code=500)
+
+
 @router.get("/sources")
 def sources(session: Session = Depends(get_db)) -> list[dict]:
     from app.db.models import SourceArtifact, IngestionRun
